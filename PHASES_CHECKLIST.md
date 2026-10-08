@@ -10,7 +10,7 @@ This document outlines the detailed checklist for all development phases of the 
 | :--- | :--- | :---: |
 | **Phase 1** | Core Extension Boilerplate (React, Vite, TS, MV3, Basic Detector & Filler) | ✅ **Completed** |
 | **Phase 2** | Nepal Data Engine (Hierarchical Geography, Names, Contacts, Institutions) | ✅ **Completed** |
-| **Phase 3** | Synthetic Person Generator (Consistency Engine & Persona Profiles) | ⏳ **Pending** |
+| **Phase 3** | Synthetic Person Generator (Consistency Engine & Persona Profiles) | ✅ **Completed** |
 | **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ⏳ **Pending** |
 | **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ⏳ **Pending** |
 | **Phase 6** | Website-Specific Mapping (Domain Overrides & Storage Engine) | ⏳ **Pending** |
@@ -81,23 +81,27 @@ Exhaustive, verified Nepali datasets stored in structured JSON formats with type
 
 ---
 
-## ⏳ Phase 3 — Synthetic Person Generator
+## ✅ Phase 3 — Synthetic Person Generator (Completed)
 
-Elevate data generation from independent randomized fields to complete, logically unified, and internally consistent personas.
+Logically unified, internally consistent personas with support for 6 archetypes.
 
-- [ ] **Geographic Consistency Engine**:
-  - [ ] Strict hierarchical resolution: `Province` ➔ `District` ➔ `Municipality` ➔ `Ward`.
-  - [ ] Automatic avoidance of invalid combinations (e.g., Koshi Province + Kathmandu District).
-  - [ ] Coherent formatted address strings matching standard Nepali postal format.
-- [ ] **Demographic & Persona Consistency**:
-  - [ ] Gender-aligned first names and honorifics (Mr., Ms., Mrs.).
-  - [ ] Age calculation mathematically coupled with `Date of Birth` (`age === currentYear - birthYear`).
-  - [ ] Landline area codes coupled to the generated address's district (e.g., `01` for Kathmandu/Lalitpur/Bhaktapur, `061` for Kaski).
-- [ ] **Persona Archetypes**:
-  - [ ] Default General Person.
-  - [ ] Age-bracket filtering (working professional: 22–60, student: 16–25, senior: 60+).
-- [ ] **Testing**:
-  - [ ] Unit tests running 1,000 randomized iterations asserting zero geographic mismatch bugs.
+- [x] **Geographic Consistency Engine**:
+  - [x] Strict hierarchical resolution: `Province` ➔ `District` ➔ `Municipality` ➔ `Ward`.
+  - [x] Zero invalid combinations (e.g., Koshi Province + Kathmandu District is impossible).
+  - [x] Coherent formatted address strings (`Tole, Ward-N, Municipality, District, Province`).
+- [x] **Demographic & Persona Consistency**:
+  - [x] Gender-aligned first names and honorifics (Mr., Ms., Mrs., Mx.).
+  - [x] Age calculation mathematically coupled with `Date of Birth` (`age === currentYear - birthYear`).
+  - [x] Landline telephone numbers automatically coupled to the generated address's district area code (`01` Kathmandu/Lalitpur/Bhaktapur, `061` Kaski, `021` Morang, `091` Kailali, etc.).
+- [x] **Persona Archetypes**:
+  - [x] **General Person**: Standard citizen profile, age 22–65, standard occupation.
+  - [x] **Student**: Age 16–24, high school/college/university, student ID, guardian name & phone.
+  - [x] **Employee**: Age 23–58, corporate designation, employee ID, 9-digit PAN number, work email, salary.
+  - [x] **Business Owner**: Age 28–65, registered business name, business type, PAN & VAT number, registered office address.
+  - [x] **Teacher**: Age 25–62, academic subject, faculty, institution, faculty ID.
+  - [x] **Farmer**: Age 28–68, agricultural cooperative, crop focus.
+- [x] **Testing**:
+  - [x] Unit tests running 1,000 randomized iterations asserting zero geographic mismatch bugs and full parity.
 
 ---
 

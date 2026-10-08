@@ -28,6 +28,8 @@ export const App: React.FC = () => {
 
   const handleProfileChange = (newProfile: FillOptions['profile']) => {
     setProfile(newProfile);
+    const newPerson = generateSyntheticPerson(newProfile);
+    setPerson(newPerson);
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       chrome.storage.local.set({ selectedProfile: newProfile });
     }
@@ -44,10 +46,11 @@ export const App: React.FC = () => {
   };
 
   const handleRegenerate = () => {
-    const newPerson = generateSyntheticPerson();
+    const newPerson = generateSyntheticPerson(profile);
     setPerson(newPerson);
     setStatus(null);
   };
+
 
   const handleFillPage = async () => {
     setIsFilling(true);
@@ -188,18 +191,18 @@ export const App: React.FC = () => {
       {/* Synthetic Person Preview Card */}
       <div className="preview-card">
         <div className="preview-header">
-          <div className="preview-name">{person.fullName}</div>
-          <div className="preview-gender-badge">{person.gender}, {person.age}y</div>
+          <div className="preview-name">{person.honorific} {person.fullName}</div>
+          <div className="preview-gender-badge">{person.profileType.toUpperCase()} • {person.gender}, {person.age}y</div>
         </div>
 
         <div className="preview-row">
           <Phone size={12} className="preview-icon" />
-          <span className="preview-text">{person.phone}</span>
+          <span className="preview-text">{person.phone} {person.telephone ? `• Tel: ${person.telephone}` : ''}</span>
         </div>
 
         <div className="preview-row">
           <Mail size={12} className="preview-icon" />
-          <span className="preview-text">{person.email}</span>
+          <span className="preview-text">{person.workEmail || person.email}</span>
         </div>
 
         <div className="preview-row">
@@ -209,7 +212,15 @@ export const App: React.FC = () => {
 
         <div className="preview-row">
           <Briefcase size={12} className="preview-icon" />
-          <span className="preview-text">{person.occupation}</span>
+          <span className="preview-text">
+            {person.school
+              ? `${person.grade || 'Student'} • ${person.school}`
+              : person.businessName
+              ? `${person.jobTitle} • ${person.businessName}`
+              : person.cropType
+              ? `${person.occupation} • ${person.cropType}`
+              : `${person.occupation} • ${person.companyName}`}
+          </span>
         </div>
       </div>
 

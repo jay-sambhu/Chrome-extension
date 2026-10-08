@@ -114,9 +114,21 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
 
     case 'occupation':
     case 'jobTitle':
+    case 'designation':
     case 'department':
     case 'companyName':
+    case 'employeeId':
+    case 'panNumber':
+    case 'vatNumber':
+    case 'businessName':
+    case 'school':
+    case 'subject':
       return fillCategories.professional;
+
+    case 'studentId':
+    case 'guardianName':
+    case 'guardianPhone':
+      return fillCategories.personal;
 
     case 'username':
     case 'password':
@@ -175,14 +187,35 @@ export function getFieldValue(type: SupportedFieldType, person: SyntheticPerson)
       return person.occupation;
     case 'jobTitle':
       return person.jobTitle;
+    case 'designation':
+      return person.designation || person.jobTitle;
     case 'department':
       return person.department;
     case 'companyName':
       return person.companyName;
+    case 'businessName':
+      return person.businessName || person.companyName;
+    case 'studentId':
+      return person.studentId || 'STD-2026-1024';
+    case 'school':
+      return person.school || person.companyName;
+    case 'guardianName':
+      return person.guardianName || person.fullName;
+    case 'guardianPhone':
+      return person.guardianPhone || person.phone;
+    case 'employeeId':
+      return person.employeeId || 'EMP-10293';
+    case 'panNumber':
+      return person.panNumber || '102938475';
+    case 'vatNumber':
+      return person.vatNumber || `VAT-${person.panNumber || '102938475'}`;
+    case 'subject':
+      return person.subject || 'Computer Science';
     case 'username':
       return person.username;
     case 'password':
       return person.password;
+
     case 'url':
       return `https://${person.username}.example.test`;
     case 'referenceNumber':
