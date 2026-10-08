@@ -11,8 +11,8 @@ This document outlines the detailed checklist for all development phases of the 
 | **Phase 1** | Core Extension Boilerplate (React, Vite, TS, MV3, Basic Detector & Filler) | ✅ **Completed** |
 | **Phase 2** | Nepal Data Engine (Hierarchical Geography, Names, Contacts, Institutions) | ✅ **Completed** |
 | **Phase 3** | Synthetic Person Generator (Consistency Engine & Persona Profiles) | ✅ **Completed** |
-| **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ⏳ **Pending** |
-| **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ⏳ **Pending** |
+| **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ✅ **Completed** |
+| **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ✅ **Completed** |
 | **Phase 6** | Website-Specific Mapping (Domain Overrides & Storage Engine) | ⏳ **Pending** |
 | **Phase 7** | Advanced Profiles & Form Controls (Student, Employee, Farmer, Shortcuts) | ⏳ **Pending** |
 
