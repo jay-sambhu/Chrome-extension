@@ -127,6 +127,10 @@ export type SupportedFieldType =
   | 'gender'
   | 'dateOfBirth'
   | 'dateOfBirthBS'
+  | 'dateBS'
+  | 'bsYear'
+  | 'bsMonth'
+  | 'bsDay'
   | 'age'
   | 'email'
   | 'phone'
@@ -202,6 +206,7 @@ export interface DetectedField {
 export interface FillOptions {
   profile: ProfileType;
   fillScript?: FillScript;
+  script?: FillScript;
   fillCategories: {
     personal: boolean;
     contact: boolean;

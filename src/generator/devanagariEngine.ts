@@ -9,6 +9,17 @@ export function toNepaliNumerals(input: number | string): string {
 }
 
 /**
+ * Maps Nepali Devanagari numerals ०-९ to English numerals 0-9.
+ */
+export function toEnglishNumerals(input: string): string {
+  const nepaliToEnglish: Record<string, string> = {
+    '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
+    '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
+  };
+  return input.replace(/[०-९]/g, (char) => nepaliToEnglish[char] ?? char);
+}
+
+/**
  * 7 Provinces in Devanagari
  */
 export const PROVINCES_DEVANAGARI: Record<string, string> = {

@@ -35,11 +35,11 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - If both addresses are present and independent, generate coherent dual addresses (e.g., Permanent: Syangja District, Current: Kathmandu Metropolitan City).
 
 ### 1.3 Nepali Calendar (Bikram Sambat) & Datepicker Integration
-- [ ] **Popular Nepali Datepicker Library Hooks**:
+- [x] **Popular Nepali Datepicker Library Hooks**:
   - Native integration with `nepali.datepicker.v4.min.js`, Hamro Patro calendar widgets, and Nepali Datepicker jQuery plugins.
-- [ ] **Split BS Date Dropdowns**:
+- [x] **Split BS Date Dropdowns**:
   - Detect separate dropdowns for BS Year (वि.सं. वर्ष: २०४०–२०८२), BS Month (महिना: बैशाख–चैत), and BS Day (गते: १–३२).
-- [ ] **Custom Format Formatting**:
+- [x] **Custom Format Formatting**:
   - Support common input formats: `YYYY/MM/DD`, `YYYY-MM-DD`, and Nepali numeric characters (`२०५५/०२/१४`).
 
 ### 1.4 Government & Official Document Identifiers

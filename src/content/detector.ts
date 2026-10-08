@@ -1,4 +1,5 @@
 import { DetectedField, SupportedFieldType } from '../types';
+import { toEnglishNumerals } from '../generator/devanagariEngine';
 
 /**
  * Extracts the most relevant human-readable label from the DOM for an input element.
@@ -219,11 +220,31 @@ const PATTERN_RULES: MatchRule[] = [
     baseConfidence: 0.91,
   },
 
-  // 8. Date of Birth (BS & AD) & Age
+  // 8. Date of Birth (BS & AD), Split BS Date & Age
   {
     type: 'dateOfBirthBS',
     regex: /(?:\b(dob\s*bs|birth\s*date\s*bs|bs\s*dob|janma\s*miti\s*bs)\b|जन्म\s*मिति\s*\(?वि\.?\s*सं\.?\)?|वि\.?\s*सं\.?\s*जन्म\s*मिति)/i,
     baseConfidence: 0.98,
+  },
+  {
+    type: 'dateBS',
+    regex: /(?:\b(bs\s*date|date\s*bs|date_bs|bs_date|nepali\s*date|nepali_date|bsdate|nepalidate|miti\s*bs)\b|वि\.?\s*सं\.?\s*मिति|मिति\s*\(?वि\.?\s*सं\.?\)?|नेपाली\s*मिति)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'bsYear',
+    regex: /(?:\b(bs\s*year|year\s*bs|birth\s*year\s*bs|bs\s*saal|saal\s*bs|year_bs|bs_year|bsyear|birthyearbs|dob_year_bs|year\(bs\))\b|वि\.?\s*सं\.?\s*(?:वर्ष|साल)|(?:वर्ष|साल)\s*\(?वि\.?\s*सं\.?\)?|विक्रम\s*संवत\s*(?:वर्ष|साल))/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'bsMonth',
+    regex: /(?:\b(bs\s*month|month\s*bs|birth\s*month\s*bs|bs\s*mahina|mahina\s*bs|month_bs|bs_month|bsmonth|birthmonthbs|dob_month_bs|month\(bs\))\b|वि\.?\s*सं\.?\s*महिना|महिना\s*\(?वि\.?\s*सं\.?\)?|विक्रम\s*संवत\s*महिना)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'bsDay',
+    regex: /(?:\b(bs\s*day|day\s*bs|birth\s*day\s*bs|bs\s*gatey|gatey\s*bs|gati\s*bs|bs\s*gati|day_bs|bs_day|bsday|birthdaybs|dob_day_bs|day\(bs\)|gatey|gati)\b|वि\.?\s*सं\.?\s*(?:गते|दिन)|(?:गते|दिन)\s*\(?वि\.?\s*सं\.?\)?|गते)/i,
+    baseConfidence: 0.96,
   },
   {
     type: 'dateOfBirth',
@@ -514,6 +535,52 @@ export function detectAddressScope(
 }
 
 /**
+ * Detects whether an element resides within a Bikram Sambat (BS) date context
+ * (e.g. within a fieldset/section titled "जन्म मिति (वि.सं.)" or "Date of Birth (BS)").
+ */
+export function detectBsDateContext(element: HTMLElement, signalsText = ''): boolean {
+  const norm = normalizeSignals(signalsText);
+  if (/(?:\b(bs|bikram\s*sambat|bikram\s*samvat)\b|वि\.?\s*सं\.?|विक्रम\s*संवत|नेपाली\s*मिति)/i.test(norm)) {
+    return true;
+  }
+
+  let current: HTMLElement | null = element.parentElement;
+  let depth = 0;
+  while (current && depth < 5 && current !== document.body) {
+    if (current.tagName.toLowerCase() === 'fieldset') {
+      const legend = current.querySelector('legend');
+      if (legend && legend.textContent) {
+        const legendNorm = normalizeSignals(legend.textContent);
+        if (/(?:\b(bs|bikram\s*sambat|bikram\s*samvat)\b|वि\.?\s*सं\.?|विक्रम\s*संवत|नेपाली\s*मिति)/i.test(legendNorm)) {
+          return true;
+        }
+      }
+    }
+
+    const heading = current.querySelector('h1, h2, h3, h4, h5, h6, .section-title, .card-title, .title, legend');
+    if (heading && heading.textContent && heading !== element && !heading.contains(element)) {
+      const hNorm = normalizeSignals(heading.textContent);
+      if (/(?:\b(bs|bikram\s*sambat|bikram\s*samvat)\b|वि\.?\s*सं\.?|विक्रम\s*संवत|नेपाली\s*मिति)/i.test(hNorm)) {
+        return true;
+      }
+    }
+
+    const containerSignals = `${current.id || ''} ${current.className || ''} ${current.getAttribute('data-section') || ''}`;
+    if (containerSignals.trim()) {
+      const cNorm = normalizeSignals(containerSignals);
+      if (/(?:\b(bs|bikram|nepali_date|nepalidate)\b|वि_?सं)/i.test(cNorm)) {
+        return true;
+      }
+    }
+
+    current = current.parentElement;
+    depth++;
+  }
+
+  return false;
+}
+
+/**
  * Multi-Signal Scoring Engine:
  * Weighs signals across attributes (type, autocomplete, label, name, id, placeholder, surrounding context)
  * and determines the best field type with confidence.
@@ -583,6 +650,71 @@ export function detectFieldType(element: HTMLElement): DetectedField {
     placeholder: normalizeSignals(placeholder),
     title: normalizeSignals(title),
   };
+
+  const rawCombinedSignals = `${label} ${name || ''} ${id || ''} ${placeholder} ${title}`;
+  const isBsContext = detectBsDateContext(element, rawCombinedSignals);
+
+  // Check for popular Nepali datepicker classes or attributes
+  const classList = (element.className || '').toString();
+  const isNepaliPickerClass =
+    /(nepali-datepicker|ndp-nepali-datepicker|hasNepaliDatePicker|nepali-date|hamro-datepicker|bod-picker)/i.test(
+      classList
+    ) ||
+    element.hasAttribute('nepali-date-picker') ||
+    element.hasAttribute('data-nepali-datepicker');
+
+  if (isNepaliPickerClass) {
+    const isDob = /(?:dob|birth|janma|जन्म)/i.test(rawCombinedSignals);
+    addScore(isDob ? 'dateOfBirthBS' : 'dateBS', 3.5);
+  }
+
+  // Inspect <select> options for split BS date dropdowns
+  if (tagName === 'select') {
+    const selectElem = element as HTMLSelectElement;
+    const options = Array.from(selectElem.options);
+    if (options.length > 0) {
+      // Month check: check if option texts or values contain Nepali month names
+      const hasBsMonthNames = options.some((opt) => {
+        const txt = `${opt.text} ${opt.value}`.toLowerCase();
+        return /baishakh|baisakh|बैशाख|jestha|jeth|जेठ|ashadh|asar|असार|shrawan|saun|साउन|chaitra|chait|चैत|falgun|फागुन|कार्तिक|मंसिर|भाद्र|भदौ|आश्विन|असोज|पौष|पुस|माघ/.test(
+          txt
+        );
+      });
+      if (hasBsMonthNames) {
+        addScore('bsMonth', 3.5);
+      }
+
+      // Year check: check if option values are in range 2020-2090 (or २०२०-२०९०)
+      const yearNums = options
+        .map((opt) => parseInt(toEnglishNumerals(opt.value || opt.text).trim(), 10))
+        .filter((n) => !isNaN(n));
+      const hasHighBsYears = yearNums.some((n) => n >= 2065 && n <= 2095);
+      const hasAnyBsYears = yearNums.some((n) => n >= 2020 && n <= 2090);
+
+      if (hasHighBsYears || (hasAnyBsYears && isBsContext)) {
+        addScore('bsYear', 3.5);
+      }
+
+      // Day check: check if option texts contain 'गते' or has 28-32 days in BS context
+      const hasGatey = options.some((opt) => opt.text.includes('गते') || opt.value.includes('गते'));
+      const dayNums = yearNums.filter((n) => n >= 1 && n <= 32);
+      if (hasGatey || (dayNums.length >= 28 && (isBsContext || /(?:day|gatey|दिन|गते)/i.test(rawCombinedSignals)))) {
+        addScore('bsDay', 3.5);
+      }
+    }
+  }
+
+  if (isBsContext) {
+    if (/(?:year|yr|साल|वर्ष)/i.test(rawCombinedSignals)) {
+      addScore('bsYear', 2.0);
+    }
+    if (/(?:month|mo|महिना)/i.test(rawCombinedSignals)) {
+      addScore('bsMonth', 2.0);
+    }
+    if (/(?:day|gatey|दिन|गते)/i.test(rawCombinedSignals)) {
+      addScore('bsDay', 2.0);
+    }
+  }
 
   // Evaluate against all patterns
   for (const rule of PATTERN_RULES) {
@@ -665,7 +797,6 @@ export function detectFieldType(element: HTMLElement): DetectedField {
   }
 
   // Checkbox specialization for sameAsPermanent
-  const rawCombinedSignals = `${label} ${name || ''} ${id || ''} ${placeholder} ${title}`;
   if (inputType === 'checkbox' || role === 'checkbox') {
     if (
       bestType === 'sameAsPermanent' ||
@@ -732,6 +863,15 @@ export function detectFieldType(element: HTMLElement): DetectedField {
     }
   }
 
+  // BS Context refinement for generic date types
+  if (isBsContext) {
+    if (bestType === 'dateOfBirth') {
+      bestType = 'dateOfBirthBS';
+    } else if (bestType === 'date') {
+      bestType = 'dateBS';
+    }
+  }
+
   // Confidence threshold: at least 0.50
   if (bestType && maxScore >= 0.5) {
     const normalizedConfidence = Math.min(0.99, Math.round((maxScore / 1.5) * 100) / 100);
@@ -755,7 +895,7 @@ export function detectFieldType(element: HTMLElement): DetectedField {
     return { element, type: 'number', confidence: 0.65, label, name, id, script };
   }
   if (inputType === 'date') {
-    return { element, type: 'date', confidence: 0.65, label, name, id, script };
+    return { element, type: isBsContext ? 'dateBS' : 'date', confidence: 0.65, label, name, id, script };
   }
   if (inputType === 'url') {
     return { element, type: 'url', confidence: 0.75, label, name, id, script };

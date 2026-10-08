@@ -8,6 +8,15 @@ import {
 } from '../types';
 import { scanFormFields } from './detector';
 import { FieldMappingRule, matchDomainRule } from '../services/domainMapping';
+import {
+  BS_MONTHS,
+  detectDateFormat,
+  formatBsDate,
+  splitBsDate,
+  syncCompanionDateInput,
+  triggerNepaliDatepickerHooks,
+} from '../generator/nepaliCalendar';
+import { toEnglishNumerals, toNepaliNumerals } from '../generator/devanagariEngine';
 
 /**
  * Triggers native value change compatible with React, Vue, Angular and standard DOM.
@@ -64,6 +73,83 @@ export function setNativeChecked(element: HTMLInputElement, checked: boolean): v
 
 
 /**
+ * Matches a select option against BS month names, aliases, and numbers.
+ */
+function matchBsMonthOption(
+  options: HTMLOptionElement[],
+  targetValue: string,
+  altValue?: string
+): HTMLOptionElement | undefined {
+  const allTargets = [targetValue, altValue].filter(Boolean) as string[];
+  const monthInfo = BS_MONTHS.find((m) =>
+    allTargets.some((t) => {
+      const tNorm = t.toLowerCase().trim();
+      const tEng = toEnglishNumerals(tNorm);
+      return (
+        m.nameEn.toLowerCase() === tNorm ||
+        m.nameNp === t.trim() ||
+        m.number.toString() === tEng ||
+        m.number.toString().padStart(2, '0') === tEng ||
+        m.aliases.some((a) => a.toLowerCase() === tNorm)
+      );
+    })
+  );
+
+  if (!monthInfo) return undefined;
+
+  return options.find((opt) => {
+    const val = opt.value.trim();
+    const text = opt.text.trim();
+    const valEng = toEnglishNumerals(val);
+    const textEng = toEnglishNumerals(text);
+    const numStr = monthInfo.number.toString();
+    const padNumStr = monthInfo.number.toString().padStart(2, '0');
+
+    return (
+      val.toLowerCase() === monthInfo.nameEn.toLowerCase() ||
+      text.toLowerCase().includes(monthInfo.nameEn.toLowerCase()) ||
+      val === monthInfo.nameNp ||
+      text.includes(monthInfo.nameNp) ||
+      valEng === numStr ||
+      valEng === padNumStr ||
+      textEng === numStr ||
+      textEng === padNumStr ||
+      monthInfo.aliases.some(
+        (a) => val.toLowerCase() === a.toLowerCase() || text.toLowerCase().includes(a.toLowerCase())
+      )
+    );
+  });
+}
+
+/**
+ * Matches a select option against numeric values (years, days, wards) across English & Devanagari numerals.
+ */
+function matchNumericOption(
+  options: HTMLOptionElement[],
+  targetValue: string,
+  altValue?: string
+): HTMLOptionElement | undefined {
+  const allTargets = [targetValue, altValue].filter(Boolean) as string[];
+  const targetEngNums = allTargets
+    .map((t) => toEnglishNumerals(t).replace(/[^0-9]/g, '').trim())
+    .filter(Boolean);
+
+  if (targetEngNums.length === 0) return undefined;
+
+  for (const tNum of targetEngNums) {
+    const cleanT = tNum.replace(/^0+/, '');
+    const matched = options.find((opt) => {
+      const valEng = toEnglishNumerals(opt.value).replace(/[^0-9]/g, '').replace(/^0+/, '').trim();
+      const textEng = toEnglishNumerals(opt.text).replace(/[^0-9]/g, '').replace(/^0+/, '').trim();
+      return (valEng && valEng === cleanT) || (textEng && textEng === cleanT);
+    });
+    if (matched) return matched;
+  }
+
+  return undefined;
+}
+
+/**
  * Finds the closest matching option for a select element, supporting dual-script alternatives.
  */
 function fillSelectElement(select: HTMLSelectElement, targetValue: string, altValue?: string): boolean {
@@ -73,19 +159,29 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
   const targetLower = targetValue.toLowerCase();
   const altLower = altValue ? altValue.toLowerCase() : undefined;
 
-  // Try exact value or text match with primary target
+  // 1. Try exact value or text match with primary target
   let matchedOption = options.find(
     (opt) => opt.value.toLowerCase() === targetLower || opt.text.toLowerCase().includes(targetLower)
   );
 
-  // If no match and alternative exists (e.g. English alternative for Devanagari or vice-versa)
+  // 2. If no match and alternative exists (e.g. English alternative for Devanagari or vice-versa)
   if (!matchedOption && altLower) {
     matchedOption = options.find(
       (opt) => opt.value.toLowerCase() === altLower || opt.text.toLowerCase().includes(altLower)
     );
   }
 
-  // If no match, check for partial match with primary target
+  // 3. BS Month option matching (Baishakh, बैशाख, 1, 01, etc.)
+  if (!matchedOption) {
+    matchedOption = matchBsMonthOption(options, targetValue, altValue);
+  }
+
+  // 4. Numeric option matching (years, days, wards across scripts)
+  if (!matchedOption) {
+    matchedOption = matchNumericOption(options, targetValue, altValue);
+  }
+
+  // 5. Partial match with primary target
   if (!matchedOption) {
     matchedOption = options.find((opt) => {
       const optText = opt.text.toLowerCase();
@@ -93,7 +189,7 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
     });
   }
 
-  // If still no match and options exist (skipping empty placeholder first option if present)
+  // 6. If still no match and options exist (skipping empty placeholder first option if present)
   if (!matchedOption && options.length > 1) {
     matchedOption = options[1].value !== '' ? options[1] : options[options.length - 1];
   } else if (!matchedOption) {
@@ -122,6 +218,10 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'gender':
     case 'dateOfBirth':
     case 'dateOfBirthBS':
+    case 'dateBS':
+    case 'bsYear':
+    case 'bsMonth':
+    case 'bsDay':
     case 'age':
     case 'studentId':
     case 'school':
@@ -307,6 +407,23 @@ export function getFieldValue(
         return dev.cropType || 'धान (Paddy)';
       case 'subject':
         return dev.subject || 'कम्प्युटर विज्ञान';
+      case 'dateOfBirthBS':
+      case 'dateBS': {
+        const bsDate = person.dateOfBirthBS || '2055-01-15';
+        return toNepaliNumerals(bsDate);
+      }
+      case 'bsYear': {
+        const bsDate = person.dateOfBirthBS || '2055-01-15';
+        return toNepaliNumerals(splitBsDate(bsDate).year);
+      }
+      case 'bsMonth': {
+        const bsDate = person.dateOfBirthBS || '2055-01-15';
+        return splitBsDate(bsDate).monthNameNp;
+      }
+      case 'bsDay': {
+        const bsDate = person.dateOfBirthBS || '2055-01-15';
+        return toNepaliNumerals(splitBsDate(bsDate).day);
+      }
       case 'textarea':
         return `${dev.fullName}को विवरण। ठेगाना: ${dev.fullAddress}। पेशा: ${dev.occupation}।`;
       case 'text':
@@ -332,7 +449,20 @@ export function getFieldValue(
     case 'dateOfBirth':
       return person.dateOfBirth;
     case 'dateOfBirthBS':
+    case 'dateBS':
       return person.dateOfBirthBS || '2055-01-15';
+    case 'bsYear': {
+      const bsDate = person.dateOfBirthBS || '2055-01-15';
+      return splitBsDate(bsDate).year;
+    }
+    case 'bsMonth': {
+      const bsDate = person.dateOfBirthBS || '2055-01-15';
+      return splitBsDate(bsDate).monthNameEn;
+    }
+    case 'bsDay': {
+      const bsDate = person.dateOfBirthBS || '2055-01-15';
+      return splitBsDate(bsDate).day;
+    }
     case 'age':
       return person.age.toString();
     case 'email':
@@ -513,6 +643,22 @@ function fillFieldElement(
     return false;
   }
 
+  // Handle BS Datepicker inputs (custom format detection, Nepali datepicker hooks, companion sync)
+  if (fieldType === 'dateBS' || fieldType === 'dateOfBirthBS') {
+    const bsDate = person.dateOfBirthBS || '2055-01-15';
+    const format = detectDateFormat(elem);
+    const targetScript = script === 'np' ? 'np' : 'en';
+    const formattedBsDate = formatBsDate(bsDate, { format, script: targetScript });
+
+    if (tagName === 'input') {
+      const inputElem = elem as HTMLInputElement;
+      setNativeValue(inputElem, formattedBsDate);
+      triggerNepaliDatepickerHooks(inputElem, formattedBsDate, person.dateOfBirth);
+      details.push({ field: fieldIdentifier || 'date_bs', type: fieldType, value: formattedBsDate });
+      return true;
+    }
+  }
+
   const primaryValue = getFieldValue(fieldType, person, script, addressScope);
   const altValue =
     script === 'np'
@@ -545,6 +691,9 @@ function fillFieldElement(
     const inputElem = elem as HTMLInputElement | HTMLTextAreaElement;
     if (primaryValue) {
       setNativeValue(inputElem, primaryValue);
+      if (tagName === 'input' && (fieldType === 'dateOfBirth' || fieldType === 'date')) {
+        syncCompanionDateInput(inputElem as HTMLInputElement, person.dateOfBirthBS || '2055-01-15', 'bs');
+      }
       details.push({ field: fieldIdentifier || 'input', type: fieldType, value: primaryValue });
       return true;
     }
@@ -648,7 +797,7 @@ export function fillPage(
       continue;
     }
 
-    const targetScript = field.script || options.fillScript || 'en';
+    const targetScript = field.script || options.fillScript || options.script || 'en';
     const filled = fillFieldElement(
       field.element,
       resolvedType,
@@ -689,7 +838,7 @@ export async function fillPageAsync(
   const unhandledUnknowns: typeof detected = [];
 
   for (const field of detected) {
-    const targetScript = field.script || options.fillScript || 'en';
+    const targetScript = field.script || options.fillScript || options.script || 'en';
 
     // 1. Check custom domain mapping overrides first (Highest priority!)
     const rule = matchDomainRule(field.element, domainRules);
@@ -761,7 +910,7 @@ export async function fillPageAsync(
 
       const classification = await classifyUnknownField(payload, geminiConfig);
       if (classification.fieldType !== 'unknown' && isCategoryEnabled(classification.fieldType, options)) {
-        const targetScript = field.script || options.fillScript || 'en';
+        const targetScript = field.script || options.fillScript || options.script || 'en';
         const filled = fillFieldElement(
           field.element,
           classification.fieldType,

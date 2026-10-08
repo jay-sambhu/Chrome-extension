@@ -6,6 +6,7 @@ import {
 } from './nepalDataEngine';
 import { Gender, NepalAddress, ProfileType, SyntheticPerson } from '../types';
 import { generateDevanagariDetails } from './devanagariEngine';
+import { convertAdToBs } from './nepaliCalendar';
 
 function sample<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
@@ -137,27 +138,7 @@ export function generateDateOfBirth(minAge = 20, maxAge = 55): { dob: string; ag
   };
 }
 
-/**
- * Converts AD YYYY-MM-DD date to approximate Nepali Bikram Sambat (BS) YYYY-MM-DD.
- * Nepal BS calendar is approximately +56.7 years ahead (Baishakh 1 aligns with mid-April).
- */
-export function convertAdToBs(adDateStr: string): string {
-  const parts = adDateStr.split('-');
-  if (parts.length !== 3) return '';
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const day = parseInt(parts[2], 10);
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
-
-  const isAfterNewYear = month > 4 || (month === 4 && day >= 14);
-  const bsYear = isAfterNewYear ? year + 57 : year + 56;
-  const bsMonth = ((month - 4 + 12) % 12) + 1;
-  const bsDay = Math.min(day, 30);
-
-  const bsMonthStr = bsMonth.toString().padStart(2, '0');
-  const bsDayStr = bsDay.toString().padStart(2, '0');
-  return `${bsYear}-${bsMonthStr}-${bsDayStr}`;
-}
+export { convertAdToBs } from './nepaliCalendar';
 
 export function generateCitizenshipNumber(): string {
   const distCode = randInt(1, 77).toString().padStart(2, '0');
