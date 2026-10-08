@@ -1,7 +1,8 @@
 import { scanFormFields } from './detector';
-import { fillPageAsync } from './filler';
+import { fillPageAsync, inspectPageFields } from './filler';
 import { ExtensionMessage, GeminiConfig } from '../types';
 import { classifyUnknownField } from '../services/geminiClassifier';
+import { getDomainMapping } from '../services/domainMapping';
 
 console.log('[Nepal Test Filler] Content script active.');
 
@@ -29,6 +30,21 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
+    if (message.action === 'GET_PAGE_FIELDS') {
+      (async () => {
+        try {
+          const domain = window.location.hostname || 'localhost';
+          const domainConfig = await getDomainMapping(domain);
+          const fields = inspectPageFields(document, domainConfig?.rules || []);
+          sendResponse({ status: 'ok', domain, fields });
+        } catch (err) {
+          console.error('[Nepal Test Filler] Inspect page fields error:', err);
+          sendResponse({ status: 'error', message: String(err) });
+        }
+      })();
+      return true;
+    }
+
     if (message.action === 'CLASSIFY_FIELD') {
       (async () => {
         try {
@@ -54,6 +70,9 @@ chrome.runtime.onMessage.addListener(
     if (message.action === 'FILL_PAGE') {
       (async () => {
         try {
+          const domain = window.location.hostname || 'localhost';
+          const domainConfig = await getDomainMapping(domain);
+
           let geminiConfig: GeminiConfig | undefined;
           if (message.options?.enableAiClassification) {
             const store = (await chrome.storage.local.get([
@@ -68,7 +87,13 @@ chrome.runtime.onMessage.addListener(
             };
           }
 
-          const result = await fillPageAsync(message.person, message.options, geminiConfig);
+          const result = await fillPageAsync(
+            message.person,
+            message.options,
+            geminiConfig,
+            document,
+            domainConfig?.rules || []
+          );
           console.log(`[Nepal Test Filler] Successfully filled ${result.fieldsFilledCount} fields.`);
           sendResponse({ status: 'ok', result });
         } catch (err) {

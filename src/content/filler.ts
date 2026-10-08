@@ -1,5 +1,12 @@
-import { FillOptions, FillResult, SupportedFieldType, SyntheticPerson } from '../types';
+import {
+  FillOptions,
+  FillResult,
+  PageFieldInspection,
+  SupportedFieldType,
+  SyntheticPerson,
+} from '../types';
 import { scanFormFields } from './detector';
+import { FieldMappingRule, matchDomainRule } from '../services/domainMapping';
 
 /**
  * Triggers native value change compatible with React, Vue, Angular and standard DOM.
@@ -299,24 +306,101 @@ function fillFieldElement(
 }
 
 /**
+ * Inspects all interactive form fields on the page, categorizing each field
+ * according to the strict precedence hierarchy:
+ * 1. Custom Domain Mapping Override
+ * 2. Heuristic Rule-Based Detector
+ * 3. Unmapped / Generic Fallback
+ */
+export function inspectPageFields(
+  root: Document | HTMLElement = document,
+  domainRules: FieldMappingRule[] = []
+): PageFieldInspection[] {
+  const detected = scanFormFields(root);
+  const inspections: PageFieldInspection[] = [];
+
+  detected.forEach((field, index) => {
+    const elem = field.element as HTMLInputElement;
+    const rule = matchDomainRule(elem, domainRules);
+
+    if (rule) {
+      inspections.push({
+        index,
+        name: field.name,
+        id: field.id,
+        placeholder: elem.placeholder,
+        label: field.label,
+        type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
+        detectedType: rule.targetType,
+        confidence: 1.0,
+        source: 'domain_override',
+      });
+    } else if (field.type !== 'unknown' && field.type !== 'text') {
+      inspections.push({
+        index,
+        name: field.name,
+        id: field.id,
+        placeholder: elem.placeholder,
+        label: field.label,
+        type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
+        detectedType: field.type,
+        confidence: field.confidence,
+        source: 'heuristic',
+      });
+    } else if (field.type === 'text' && field.confidence > 0.4) {
+      inspections.push({
+        index,
+        name: field.name,
+        id: field.id,
+        placeholder: elem.placeholder,
+        label: field.label,
+        type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
+        detectedType: field.type,
+        confidence: field.confidence,
+        source: 'heuristic',
+      });
+    } else {
+      inspections.push({
+        index,
+        name: field.name,
+        id: field.id,
+        placeholder: elem.placeholder,
+        label: field.label,
+        type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
+        detectedType: 'unknown',
+        confidence: 0,
+        source: 'unmapped',
+      });
+    }
+  });
+
+  return inspections;
+}
+
+/**
  * Fills detected fields on the webpage using the synthetic person and user options.
- * Runs 100% offline using local heuristic rule engine.
+ * Runs 100% offline using local heuristic rule engine and domain-specific rules.
  */
 export function fillPage(
   person: SyntheticPerson,
   options: FillOptions,
-  root: Document | HTMLElement = document
+  root: Document | HTMLElement = document,
+  domainRules: FieldMappingRule[] = []
 ): FillResult {
   const detected = scanFormFields(root);
   const details: FillResult['details'] = [];
   let fieldsFilledCount = 0;
 
   for (const field of detected) {
-    if (!isCategoryEnabled(field.type, options)) {
+    // 1. Check custom domain mapping overrides first (Highest priority!)
+    const rule = matchDomainRule(field.element, domainRules);
+    const resolvedType = rule ? rule.targetType : field.type;
+
+    if (!isCategoryEnabled(resolvedType, options)) {
       continue;
     }
 
-    const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
+    const filled = fillFieldElement(field.element, resolvedType, person, field.name || field.id, details);
     if (filled) {
       fieldsFilledCount++;
     }
@@ -330,14 +414,17 @@ export function fillPage(
 }
 
 /**
- * Asynchronous page filler that executes local detection first, and optionally
- * uses Gemini to classify unknown fields if opted-in and configured.
+ * Asynchronous page filler that executes:
+ * 1. Custom Domain Mapping Overrides (Highest priority)
+ * 2. Local Heuristic Detection
+ * 3. Optional Gemini AI classification for unhandled unknowns
  */
 export async function fillPageAsync(
   person: SyntheticPerson,
   options: FillOptions,
   geminiConfig?: import('../types').GeminiConfig,
-  root: Document | HTMLElement = document
+  root: Document | HTMLElement = document,
+  domainRules: FieldMappingRule[] = []
 ): Promise<FillResult> {
   const detected = scanFormFields(root);
   const details: FillResult['details'] = [];
@@ -345,6 +432,17 @@ export async function fillPageAsync(
   const unhandledUnknowns: typeof detected = [];
 
   for (const field of detected) {
+    // 1. Check custom domain mapping overrides first (Highest priority!)
+    const rule = matchDomainRule(field.element, domainRules);
+    if (rule) {
+      if (isCategoryEnabled(rule.targetType, options)) {
+        const filled = fillFieldElement(field.element, rule.targetType, person, field.name || field.id, details);
+        if (filled) fieldsFilledCount++;
+      }
+      continue;
+    }
+
+    // 2. Rule-based local heuristic detector
     if (field.type !== 'unknown' && field.type !== 'text' && isCategoryEnabled(field.type, options)) {
       const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
       if (filled) fieldsFilledCount++;
@@ -356,7 +454,7 @@ export async function fillPageAsync(
     }
   }
 
-  // If AI classification is enabled and configured, classify unhandled fields
+  // 3. Optional Gemini AI classification for remaining unhandled fields
   if (
     options.enableAiClassification &&
     geminiConfig?.enabled &&

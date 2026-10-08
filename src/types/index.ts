@@ -162,8 +162,21 @@ export interface ClassificationCacheEntry {
   timestamp: number;
 }
 
+export interface PageFieldInspection {
+  index: number;
+  name?: string;
+  id?: string;
+  placeholder?: string;
+  label?: string;
+  type: string;
+  detectedType: SupportedFieldType;
+  confidence: number;
+  source: 'domain_override' | 'heuristic' | 'ai_cached' | 'unmapped';
+}
+
 export type ExtensionMessage =
   | { action: 'SCAN_PAGE' }
+  | { action: 'GET_PAGE_FIELDS' }
   | { action: 'FILL_PAGE'; person: SyntheticPerson; options: FillOptions }
   | { action: 'GET_LAST_GENERATED_PERSON' }
   | { action: 'CLASSIFY_FIELD'; payload: FieldClassificationPayload }

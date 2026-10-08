@@ -55,6 +55,14 @@ describe('Website-Specific Domain Mapping Engine', () => {
       expect(config?.rules[0].targetType).toBe('referenceNumber');
     });
 
+    it('retrieves all saved domain mappings with getAllDomainMappings', async () => {
+      await saveDomainRule('site1.com', { selectorOrName: 'field1', targetType: 'fullName' });
+      await saveDomainRule('site2.com', { selectorOrName: 'field2', targetType: 'email' });
+
+      const all = await getAllDomainMappings();
+      expect(Object.keys(all).sort()).toEqual(['site1.com', 'site2.com']);
+    });
+
     it('deletes individual rules and entire domain configs', async () => {
       await saveDomainRule('portal.np', { selectorOrName: 'fieldA', targetType: 'fullName' });
       await saveDomainRule('portal.np', { selectorOrName: 'fieldB', targetType: 'email' });
