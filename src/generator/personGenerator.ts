@@ -47,6 +47,68 @@ export function generateNepalAddress(targetProvince?: string, preferRural = fals
   };
 }
 
+/**
+ * Generates a coherent temporary/current address distinct from the permanent address.
+ * Simulates typical Nepali domestic migration towards major urban hubs (e.g. Kathmandu Valley,
+ * Pokhara, Chitwan, Biratnagar, Butwal).
+ */
+export function generateDistinctTemporaryAddress(permanentAddress: NepalAddress): NepalAddress {
+  const urbanDestinations: Array<{ province: string; district: string; municipality: string }> = [
+    { province: 'Bagmati Province', district: 'Kathmandu', municipality: 'Kathmandu Metropolitan City' },
+    { province: 'Bagmati Province', district: 'Lalitpur', municipality: 'Lalitpur Metropolitan City' },
+    { province: 'Bagmati Province', district: 'Bhaktapur', municipality: 'Bhaktapur Municipality' },
+    { province: 'Bagmati Province', district: 'Kathmandu', municipality: 'Budhanilkantha Municipality' },
+    { province: 'Gandaki Province', district: 'Kaski', municipality: 'Pokhara Metropolitan City' },
+    { province: 'Bagmati Province', district: 'Chitwan', municipality: 'Bharatpur Metropolitan City' },
+    { province: 'Koshi Province', district: 'Morang', municipality: 'Biratnagar Metropolitan City' },
+    { province: 'Lumbini Province', district: 'Rupandehi', municipality: 'Butwal Sub-Metropolitan City' },
+  ];
+
+  // Filter out any destination that matches the permanent district
+  const eligible = urbanDestinations.filter((d) => d.district !== permanentAddress.district);
+  const dest = eligible.length > 0 ? sample(eligible) : sample(urbanDestinations);
+
+  const district =
+    NepalDataEngine.districts.find((d) => d.name === dest.district && d.province === dest.province) ||
+    NepalDataEngine.getRandomDistrict(dest.province);
+  const municipality =
+    NepalDataEngine.municipalities.find((m) => m.name === dest.municipality && m.district === district.name) ||
+    NepalDataEngine.getRandomMunicipality(district.name);
+
+  const ward = NepalDataEngine.getRandomWard(municipality);
+  const tole = NepalDataEngine.getRandomTole();
+
+  const cleanMunicipality = municipality.name
+    .replace(' Metropolitan City', '')
+    .replace(' Sub-Metropolitan City', '')
+    .replace(' Rural Municipality', '')
+    .replace(' Municipality', '');
+
+  const fullAddress = `${tole}, Ward-${ward}, ${cleanMunicipality}, ${district.name}, ${dest.province}`;
+
+  return {
+    province: dest.province,
+    district: district.name,
+    municipality: municipality.name,
+    municipalityType: municipality.type,
+    ward,
+    tole,
+    fullAddress,
+  };
+}
+
+/**
+ * Generates both permanent and temporary addresses simultaneously.
+ */
+export function generateDualNepalAddresses(preferRuralPermanent = false): {
+  permanentAddress: NepalAddress;
+  temporaryAddress: NepalAddress;
+} {
+  const permanentAddress = generateNepalAddress(undefined, preferRuralPermanent);
+  const temporaryAddress = generateDistinctTemporaryAddress(permanentAddress);
+  return { permanentAddress, temporaryAddress };
+}
+
 export function generateNepaliPhone(): string {
   const prefix = NepalDataEngine.getRandomMobilePrefix();
   const suffix = Math.floor(1000000 + Math.random() * 9000000).toString().slice(0, 7);
@@ -155,6 +217,7 @@ export function generateSyntheticPerson(
 
   // Address and district-coupled landline
   const address = generateNepalAddress(undefined, profileType === 'farmer');
+  const temporaryAddress = generateDistinctTemporaryAddress(address);
   const phone = generateNepaliPhone();
   const telephone = generateNepaliTelephone(address.district);
 
@@ -293,6 +356,9 @@ export function generateSyntheticPerson(
     telephone,
     email,
     address,
+    permanentAddress: address,
+    temporaryAddress,
+    currentAddress: temporaryAddress,
     occupation,
     jobTitle,
     department,

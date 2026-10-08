@@ -37,20 +37,29 @@ export function setNativeValue(
  * Triggers native checked change for Checkbox and Radio elements.
  */
 export function setNativeChecked(element: HTMLInputElement, checked: boolean): void {
-  const checkedSetter = Object.getOwnPropertyDescriptor(element, 'checked')?.set;
-  const prototype = Object.getPrototypeOf(element);
-  const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'checked')?.set;
-
-  if (prototypeValueSetter && checkedSetter !== prototypeValueSetter) {
-    prototypeValueSetter.call(element, checked);
-  } else if (checkedSetter) {
-    checkedSetter.call(element, checked);
-  } else {
-    element.checked = checked;
+  if (element.checked === checked) {
+    return;
   }
 
-  element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-  element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+  // Triggering click matches authentic user interaction in browsers/JSDOM
+  element.click();
+
+  if (element.checked !== checked) {
+    const checkedSetter = Object.getOwnPropertyDescriptor(element, 'checked')?.set;
+    const prototype = Object.getPrototypeOf(element);
+    const prototypeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'checked')?.set;
+
+    if (prototypeValueSetter && checkedSetter !== prototypeValueSetter) {
+      prototypeValueSetter.call(element, checked);
+    } else if (checkedSetter) {
+      checkedSetter.call(element, checked);
+    } else {
+      element.checked = checked;
+    }
+
+    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+  }
 }
 
 
@@ -130,11 +139,30 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
       return fillCategories.contact;
 
     case 'province':
+    case 'permanentProvince':
+    case 'temporaryProvince':
+    case 'currentProvince':
     case 'district':
+    case 'permanentDistrict':
+    case 'temporaryDistrict':
+    case 'currentDistrict':
     case 'municipality':
+    case 'permanentMunicipality':
+    case 'temporaryMunicipality':
+    case 'currentMunicipality':
     case 'ward':
+    case 'permanentWard':
+    case 'temporaryWard':
+    case 'currentWard':
     case 'tole':
+    case 'permanentTole':
+    case 'temporaryTole':
+    case 'currentTole':
     case 'address':
+    case 'permanentAddress':
+    case 'temporaryAddress':
+    case 'currentAddress':
+    case 'sameAsPermanent':
       return fillCategories.address;
 
     case 'occupation':
@@ -176,8 +204,24 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
 export function getFieldValue(
   type: SupportedFieldType,
   person: SyntheticPerson,
-  script?: FillScript
+  script?: FillScript,
+  addressScope?: 'permanent' | 'temporary'
 ): string {
+  const isTemporary =
+    addressScope === 'temporary' ||
+    type === 'temporaryAddress' ||
+    type === 'currentAddress' ||
+    type === 'temporaryProvince' ||
+    type === 'currentProvince' ||
+    type === 'temporaryDistrict' ||
+    type === 'currentDistrict' ||
+    type === 'temporaryMunicipality' ||
+    type === 'currentMunicipality' ||
+    type === 'temporaryWard' ||
+    type === 'currentWard' ||
+    type === 'temporaryTole' ||
+    type === 'currentTole';
+
   if (script === 'np' && person.devanagari) {
     const dev = person.devanagari;
     switch (type) {
@@ -192,17 +236,49 @@ export function getFieldValue(
       case 'gender':
         return dev.gender;
       case 'province':
-        return dev.province;
+      case 'permanentProvince':
+      case 'temporaryProvince':
+      case 'currentProvince':
+        return isTemporary
+          ? dev.tempProvince || dev.currentProvince || dev.province
+          : dev.permanentProvince || dev.province;
       case 'district':
-        return dev.district;
+      case 'permanentDistrict':
+      case 'temporaryDistrict':
+      case 'currentDistrict':
+        return isTemporary
+          ? dev.tempDistrict || dev.currentDistrict || dev.district
+          : dev.permanentDistrict || dev.district;
       case 'municipality':
-        return dev.municipality;
+      case 'permanentMunicipality':
+      case 'temporaryMunicipality':
+      case 'currentMunicipality':
+        return isTemporary
+          ? dev.tempMunicipality || dev.currentMunicipality || dev.municipality
+          : dev.permanentMunicipality || dev.municipality;
       case 'ward':
-        return dev.ward.replace('वडा नं. ', '');
+      case 'permanentWard':
+      case 'temporaryWard':
+      case 'currentWard': {
+        const w = isTemporary
+          ? dev.tempWard || dev.currentWard || dev.ward
+          : dev.permanentWard || dev.ward;
+        return w.replace('वडा नं. ', '');
+      }
       case 'tole':
-        return dev.tole;
+      case 'permanentTole':
+      case 'temporaryTole':
+      case 'currentTole':
+        return isTemporary
+          ? dev.tempTole || dev.currentTole || dev.tole
+          : dev.permanentTole || dev.tole;
       case 'address':
-        return dev.fullAddress;
+      case 'permanentAddress':
+      case 'temporaryAddress':
+      case 'currentAddress':
+        return isTemporary
+          ? dev.tempFullAddress || dev.currentFullAddress || dev.fullAddress
+          : dev.permanentFullAddress || dev.fullAddress;
       case 'occupation':
         return dev.occupation;
       case 'jobTitle':
@@ -238,6 +314,10 @@ export function getFieldValue(
     }
   }
 
+  const targetAddress = isTemporary
+    ? person.temporaryAddress || person.currentAddress || person.address
+    : person.permanentAddress || person.address;
+
   switch (type) {
     case 'fullName':
       return person.fullName;
@@ -262,17 +342,35 @@ export function getFieldValue(
     case 'telephone':
       return person.telephone;
     case 'province':
-      return person.address.province;
+    case 'permanentProvince':
+    case 'temporaryProvince':
+    case 'currentProvince':
+      return targetAddress.province;
     case 'district':
-      return person.address.district;
+    case 'permanentDistrict':
+    case 'temporaryDistrict':
+    case 'currentDistrict':
+      return targetAddress.district;
     case 'municipality':
-      return person.address.municipality;
+    case 'permanentMunicipality':
+    case 'temporaryMunicipality':
+    case 'currentMunicipality':
+      return targetAddress.municipality;
     case 'ward':
-      return person.address.ward.toString();
+    case 'permanentWard':
+    case 'temporaryWard':
+    case 'currentWard':
+      return targetAddress.ward.toString();
     case 'tole':
-      return person.address.tole;
+    case 'permanentTole':
+    case 'temporaryTole':
+    case 'currentTole':
+      return targetAddress.tole;
     case 'address':
-      return person.address.fullAddress;
+    case 'permanentAddress':
+    case 'temporaryAddress':
+    case 'currentAddress':
+      return targetAddress.fullAddress;
     case 'occupation':
       return person.occupation;
     case 'jobTitle':
@@ -348,7 +446,8 @@ function fillFieldElement(
   person: SyntheticPerson,
   fieldIdentifier: string | undefined,
   details: FillResult['details'],
-  script?: FillScript
+  script?: FillScript,
+  addressScope?: 'permanent' | 'temporary'
 ): boolean {
   const tagName = elem.tagName.toLowerCase();
   const inputType = (elem.getAttribute('type') || '').toLowerCase();
@@ -393,7 +492,19 @@ function fillFieldElement(
         return true;
       }
     } else if (inputType === 'checkbox') {
-      if (/terms|agree|policy/i.test(fieldIdentifier || '')) {
+      if (
+        fieldType === 'sameAsPermanent' ||
+        /(?:same\s*as\s*(?:perm|permanent|sthayi|sthayee)|sameaspermanent|same_as_permanent|same_as_perm|same_perm|copy_permanent|same_address|sthayi_saraha|sthayee_sara)\b|स्थायी\s*(?:ठेगाना\s*)?(?:अनुसार|जस्तै|सरह)|हालको\s*ठेगाना\s*स्थायी\s*सरह/i.test(
+          fieldIdentifier || ''
+        ) ||
+        /(?:same\s*as\s*(?:perm|permanent)|sameaspermanent|same_as_permanent)/i.test(
+          `${elem.id || ''} ${elem.getAttribute('name') || ''} ${elem.getAttribute('aria-label') || ''}`
+        )
+      ) {
+        setNativeChecked(inputElem, true);
+        details.push({ field: fieldIdentifier || 'same_as_permanent', type: 'sameAsPermanent', value: true });
+        return true;
+      } else if (/terms|agree|policy/i.test(fieldIdentifier || '')) {
         setNativeChecked(inputElem, true);
         details.push({ field: fieldIdentifier || 'checkbox', type: fieldType, value: true });
         return true;
@@ -402,8 +513,11 @@ function fillFieldElement(
     return false;
   }
 
-  const primaryValue = getFieldValue(fieldType, person, script);
-  const altValue = script === 'np' ? getFieldValue(fieldType, person, 'en') : getFieldValue(fieldType, person, 'np');
+  const primaryValue = getFieldValue(fieldType, person, script, addressScope);
+  const altValue =
+    script === 'np'
+      ? getFieldValue(fieldType, person, 'en', addressScope)
+      : getFieldValue(fieldType, person, 'np', addressScope);
 
   // Handle Select elements
   if (tagName === 'select') {
@@ -535,7 +649,15 @@ export function fillPage(
     }
 
     const targetScript = field.script || options.fillScript || 'en';
-    const filled = fillFieldElement(field.element, resolvedType, person, field.name || field.id, details, targetScript);
+    const filled = fillFieldElement(
+      field.element,
+      resolvedType,
+      person,
+      field.name || field.id,
+      details,
+      targetScript,
+      field.addressScope
+    );
     if (filled) {
       fieldsFilledCount++;
     }
@@ -573,7 +695,15 @@ export async function fillPageAsync(
     const rule = matchDomainRule(field.element, domainRules);
     if (rule) {
       if (isCategoryEnabled(rule.targetType, options)) {
-        const filled = fillFieldElement(field.element, rule.targetType, person, field.name || field.id, details, targetScript);
+        const filled = fillFieldElement(
+          field.element,
+          rule.targetType,
+          person,
+          field.name || field.id,
+          details,
+          targetScript,
+          field.addressScope
+        );
         if (filled) fieldsFilledCount++;
       }
       continue;
@@ -581,10 +711,26 @@ export async function fillPageAsync(
 
     // 2. Rule-based local heuristic detector
     if (field.type !== 'unknown' && field.type !== 'text' && isCategoryEnabled(field.type, options)) {
-      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details, targetScript);
+      const filled = fillFieldElement(
+        field.element,
+        field.type,
+        person,
+        field.name || field.id,
+        details,
+        targetScript,
+        field.addressScope
+      );
       if (filled) fieldsFilledCount++;
     } else if (field.type === 'text' && field.confidence > 0.4 && isCategoryEnabled(field.type, options)) {
-      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details, targetScript);
+      const filled = fillFieldElement(
+        field.element,
+        field.type,
+        person,
+        field.name || field.id,
+        details,
+        targetScript,
+        field.addressScope
+      );
       if (filled) fieldsFilledCount++;
     } else {
       unhandledUnknowns.push(field);

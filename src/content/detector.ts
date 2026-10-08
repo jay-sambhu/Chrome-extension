@@ -265,7 +265,74 @@ const PATTERN_RULES: MatchRule[] = [
     baseConfidence: 0.90,
   },
 
-  // 11. Nepal Address Components
+  // 10.5 Same as Permanent Checkbox
+  {
+    type: 'sameAsPermanent',
+    regex: /(?:\b(same\s*as\s*(?:perm|permanent|sthayi|sthayee)|sameaspermanent|same_as_permanent|same_as_perm|same_perm|copy_permanent|same_address|sthayi_saraha|sthayee_sara)\b|स्थायी\s*(?:ठेगाना\s*)?(?:अनुसार|जस्तै|सरह)|हालको\s*ठेगाना\s*स्थायी\s*सरह)/i,
+    baseConfidence: 0.98,
+  },
+
+  // 11. Nepal Address Components (Permanent vs Temporary & Generic)
+  {
+    type: 'permanentAddress',
+    regex: /(?:\b(permanent\s*address|perm\s*address|permanent_thegana|sthayee_address)\b|मूल\s*ठेगाना)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'temporaryAddress',
+    regex: /(?:\b(temporary\s*address|temp\s*address|current\s*address|present\s*address|temp_thegana)\b)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'permanentProvince',
+    regex: /(?:\b(?:permanent|perm|sthayi|sthayee)\s*(?:province|pradesh|state)\b|(?<!अ)स्थायी\s*प्रदेश)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'temporaryProvince',
+    regex: /(?:\b(?:temporary|temp|current|present|asthayi|asthyee|halko)\s*(?:province|pradesh|state)\b|अस्थायी\s*प्रदेश|हालको\s*प्रदेश)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'permanentDistrict',
+    regex: /(?:\b(?:permanent|perm|sthayi|sthayee)\s*(?:district|jilla|zila)\b|(?<!अ)स्थायी\s*जिल्ला)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'temporaryDistrict',
+    regex: /(?:\b(?:temporary|temp|current|present|asthayi|asthyee|halko)\s*(?:district|jilla|zila)\b|अस्थायी\s*जिल्ला|हालको\s*जिल्ला)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'permanentMunicipality',
+    regex: /(?:\b(?:permanent|perm|sthayi|sthayee)\s*(?:municipality|nagarpalika|gaupalika|metro|local\s*level)\b|(?<!अ)स्थायी\s*(?:नगरपालिका|गाउँपालिका|महानगरपालिका|उपमहानगरपालिका|स्थानीय\s*तह))/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'temporaryMunicipality',
+    regex: /(?:\b(?:temporary|temp|current|present|asthayi|asthyee|halko)\s*(?:municipality|nagarpalika|gaupalika|metro|local\s*level)\b|अस्थायी\s*(?:नगरपालिका|गाउँपालिका|महानगरपालिका|उपमहानगरपालिका|स्थानीय\s*तह)|हालको\s*(?:नगरपालिका|गाउँपालिका|महानगरपालिका|उपमहानगरपालिका|स्थानीय\s*तह))/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'permanentWard',
+    regex: /(?:\b(?:permanent|perm|sthayi|sthayee)\s*(?:ward|wada)\b|(?<!अ)स्थायी\s*वडा)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'temporaryWard',
+    regex: /(?:\b(?:temporary|temp|current|present|asthayi|asthyee|halko)\s*(?:ward|wada)\b|अस्थायी\s*वडा|हालको\s*वडा)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'permanentTole',
+    regex: /(?:\b(?:permanent|perm|sthayi|sthayee)\s*(?:tole|chowk|street|road|marga)\b|(?<!अ)स्थायी\s*टोल)/i,
+    baseConfidence: 0.95,
+  },
+  {
+    type: 'temporaryTole',
+    regex: /(?:\b(?:temporary|temp|current|present|asthayi|asthyee|halko)\s*(?:tole|chowk|street|road|marga)\b|अस्थायी\s*टोल|हालको\s*टोल)/i,
+    baseConfidence: 0.95,
+  },
   {
     type: 'province',
     regex: /(?:\b(province|pradesh|state|rajya)\b|प्रदेश)/i,
@@ -364,6 +431,89 @@ export function detectTargetScript(signals: {
 }
 
 /**
+ * Detects whether an element belongs to Permanent or Temporary/Current address context
+ * based on element signals and DOM container hierarchy.
+ */
+export function detectAddressScope(
+  element: HTMLElement,
+  signalsText: string
+): 'permanent' | 'temporary' | undefined {
+  // 1. Direct field signals (label, name, id, placeholder, title)
+  const norm = normalizeSignals(signalsText);
+
+  const isTemp =
+    /(?:\b(temporary|temp|current|present|asthayi|asthyee|asthayee|halko|hal|corr|correspondence)\b|अस्थायी|हालको|पत्राचार)/i.test(
+      norm
+    ) || /(?:^|[._\-])(?:temp|curr|temporary|current|asthayi|asthyee|asthayee)(?:[._\-]|$)/i.test(signalsText);
+
+  const isPerm =
+    /(?:\b(permanent|perm|sthayi|sthayee|mool|mul)\b|(?<!अ)स्थायी|मूल)/i.test(norm) ||
+    /(?:^|[._\-])(?:perm|permanent|sthayi|sthayee)(?:[._\-]|$)/i.test(signalsText);
+
+  if (isTemp && !isPerm) return 'temporary';
+  if (isPerm && !isTemp) return 'permanent';
+
+  // 2. DOM Ancestor Traversal (Fieldset legend, card header, section classes/IDs)
+  let current: HTMLElement | null = element.parentElement;
+  let depth = 0;
+  while (current && depth < 6 && current !== document.body) {
+    if (current.tagName.toLowerCase() === 'fieldset') {
+      const legend = current.querySelector('legend');
+      if (legend && legend.textContent) {
+        const legendNorm = normalizeSignals(legend.textContent);
+        if (
+          /(?:\b(temporary|temp|current|present|asthayi|asthyee|asthayee|halko)\b|अस्थायी|हालको)/i.test(
+            legendNorm
+          )
+        ) {
+          return 'temporary';
+        }
+        if (/(?:\b(permanent|perm|sthayi|sthayee)\b|(?<!अ)स्थायी)/i.test(legendNorm)) {
+          return 'permanent';
+        }
+      }
+    }
+
+    const heading = current.querySelector('h1, h2, h3, h4, h5, h6, .section-title, .card-title, .title, legend');
+    if (heading && heading.textContent && heading !== element) {
+      const hNorm = normalizeSignals(heading.textContent);
+      if (
+        /(?:\b(temporary|temp|current|present|asthayi|asthyee|asthayee|halko)\b|अस्थायी|हालको)/i.test(
+          hNorm
+        )
+      ) {
+        return 'temporary';
+      }
+      if (/(?:\b(permanent|perm|sthayi|sthayee)\b|(?<!अ)स्थायी)/i.test(hNorm)) {
+        return 'permanent';
+      }
+    }
+
+    const containerSignals = `${current.id || ''} ${current.className || ''} ${
+      current.getAttribute('data-section') || ''
+    } ${current.getAttribute('data-name') || ''}`;
+    if (containerSignals.trim()) {
+      const cNorm = normalizeSignals(containerSignals);
+      if (
+        /(?:\b(temporary|temp|current|present|asthayi|asthyee|asthayee|halko)\b|अस्थायी|हालको)/i.test(
+          cNorm
+        )
+      ) {
+        return 'temporary';
+      }
+      if (/(?:\b(permanent|perm|sthayi|sthayee)\b|(?<!अ)स्थायी)/i.test(cNorm)) {
+        return 'permanent';
+      }
+    }
+
+    current = current.parentElement;
+    depth++;
+  }
+
+  return undefined;
+}
+
+/**
  * Multi-Signal Scoring Engine:
  * Weighs signals across attributes (type, autocomplete, label, name, id, placeholder, surrounding context)
  * and determines the best field type with confidence.
@@ -386,14 +536,28 @@ export function detectFieldType(element: HTMLElement): DetectedField {
 
   // 1. Direct autocomplete signal (Highest precedence if matched)
   if (autocomplete && AUTOCOMPLETE_MAP[autocomplete]) {
+    let matchedType = AUTOCOMPLETE_MAP[autocomplete];
+    const rawSignals = `${label} ${name || ''} ${id || ''} ${placeholder} ${title}`;
+    const addressScope = detectAddressScope(element, rawSignals);
+    if (addressScope === 'temporary') {
+      if (matchedType === 'province') matchedType = 'temporaryProvince';
+      else if (matchedType === 'district') matchedType = 'temporaryDistrict';
+      else if (matchedType === 'address') matchedType = 'temporaryAddress';
+    } else if (addressScope === 'permanent') {
+      if (matchedType === 'province') matchedType = 'permanentProvince';
+      else if (matchedType === 'district') matchedType = 'permanentDistrict';
+      else if (matchedType === 'address') matchedType = 'permanentAddress';
+    }
+
     return {
       element,
-      type: AUTOCOMPLETE_MAP[autocomplete],
+      type: matchedType,
       confidence: 0.98,
       label,
       name,
       id,
       script,
+      addressScope,
     };
   }
 
@@ -455,6 +619,119 @@ export function detectFieldType(element: HTMLElement): DetectedField {
     }
   }
 
+  // If a specific address component (district, province, municipality, ward, tole) matched,
+  // it takes precedence over a generic or compound address match (e.g. from container or "स्थायी ठेगाना - जिल्ला")
+  if (
+    bestType === 'address' ||
+    bestType === 'permanentAddress' ||
+    bestType === 'temporaryAddress' ||
+    bestType === 'currentAddress'
+  ) {
+    const specificTypes: SupportedFieldType[] = [
+      'district',
+      'permanentDistrict',
+      'temporaryDistrict',
+      'currentDistrict',
+      'province',
+      'permanentProvince',
+      'temporaryProvince',
+      'currentProvince',
+      'municipality',
+      'permanentMunicipality',
+      'temporaryMunicipality',
+      'currentMunicipality',
+      'ward',
+      'permanentWard',
+      'temporaryWard',
+      'currentWard',
+      'tole',
+      'permanentTole',
+      'temporaryTole',
+      'currentTole',
+    ];
+    let bestSpecific: SupportedFieldType | null = null;
+    let maxSpecificScore = 0;
+    for (const t of specificTypes) {
+      const s = scores.get(t) || 0;
+      if (s > maxSpecificScore && s >= 0.5) {
+        maxSpecificScore = s;
+        bestSpecific = t;
+      }
+    }
+    if (bestSpecific) {
+      bestType = bestSpecific;
+      maxScore = maxSpecificScore;
+    }
+  }
+
+  // Checkbox specialization for sameAsPermanent
+  const rawCombinedSignals = `${label} ${name || ''} ${id || ''} ${placeholder} ${title}`;
+  if (inputType === 'checkbox' || role === 'checkbox') {
+    if (
+      bestType === 'sameAsPermanent' ||
+      /(?:\b(same\s*as\s*(?:perm|permanent|sthayi|sthayee)|sameaspermanent|same_as_permanent|same_as_perm|same_perm|copy_permanent|same_address)\b|स्थायी\s*(?:ठेगाना\s*)?(?:अनुसार|जस्तै|सरह)|हालको\s*ठेगाना\s*स्थायी\s*सरह)/i.test(
+        rawCombinedSignals
+      )
+    ) {
+      return {
+        element,
+        type: 'sameAsPermanent',
+        confidence: 0.98,
+        label,
+        name,
+        id,
+        script,
+        addressScope: 'temporary',
+      };
+    }
+  }
+
+  // Address scope refinement
+  const isAddressField =
+    bestType === 'province' ||
+    bestType === 'district' ||
+    bestType === 'municipality' ||
+    bestType === 'ward' ||
+    bestType === 'tole' ||
+    bestType === 'address' ||
+    bestType === 'permanentAddress' ||
+    bestType === 'temporaryAddress' ||
+    bestType === 'currentAddress' ||
+    bestType === 'permanentProvince' ||
+    bestType === 'temporaryProvince' ||
+    bestType === 'currentProvince' ||
+    bestType === 'permanentDistrict' ||
+    bestType === 'temporaryDistrict' ||
+    bestType === 'currentDistrict' ||
+    bestType === 'permanentMunicipality' ||
+    bestType === 'temporaryMunicipality' ||
+    bestType === 'currentMunicipality' ||
+    bestType === 'permanentWard' ||
+    bestType === 'temporaryWard' ||
+    bestType === 'currentWard' ||
+    bestType === 'permanentTole' ||
+    bestType === 'temporaryTole' ||
+    bestType === 'currentTole';
+
+  let addressScope: 'permanent' | 'temporary' | undefined;
+  if (isAddressField) {
+    addressScope = detectAddressScope(element, rawCombinedSignals);
+
+    if (addressScope === 'temporary') {
+      if (bestType === 'province') bestType = 'temporaryProvince';
+      else if (bestType === 'district') bestType = 'temporaryDistrict';
+      else if (bestType === 'municipality') bestType = 'temporaryMunicipality';
+      else if (bestType === 'ward') bestType = 'temporaryWard';
+      else if (bestType === 'tole') bestType = 'temporaryTole';
+    } else if (addressScope === 'permanent') {
+      if (bestType === 'province') bestType = 'permanentProvince';
+      else if (bestType === 'district') bestType = 'permanentDistrict';
+      else if (bestType === 'municipality') bestType = 'permanentMunicipality';
+      else if (bestType === 'ward') bestType = 'permanentWard';
+      else if (bestType === 'tole') bestType = 'permanentTole';
+    }
+  }
+
   // Confidence threshold: at least 0.50
   if (bestType && maxScore >= 0.5) {
     const normalizedConfidence = Math.min(0.99, Math.round((maxScore / 1.5) * 100) / 100);
@@ -466,6 +743,7 @@ export function detectFieldType(element: HTMLElement): DetectedField {
       name,
       id,
       script,
+      addressScope,
     };
   }
 

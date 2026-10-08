@@ -716,6 +716,25 @@ export function generateDevanagariDetails(person: SyntheticPerson): DevanagariDe
   const nepTole = transliterateWord(person.address.tole);
   const nepFullAddress = `${nepTole}, ${nepWard}, ${nepMunicipality}, ${nepDistrict}, ${nepProvince}`;
 
+  // Temporary / Current Address Devanagari
+  const tempAddr = person.temporaryAddress || person.currentAddress;
+  let nepTempProvince: string | undefined;
+  let nepTempDistrict: string | undefined;
+  let nepTempMunicipality: string | undefined;
+  let nepTempWard: string | undefined;
+  let nepTempTole: string | undefined;
+  let nepTempFullAddress: string | undefined;
+
+  if (tempAddr) {
+    nepTempProvince = PROVINCES_DEVANAGARI[tempAddr.province] || tempAddr.province;
+    nepTempDistrict = DISTRICTS_DEVANAGARI[tempAddr.district] || tempAddr.district;
+    nepTempMunicipality = transliterateMunicipality(tempAddr.municipality);
+    const nepTempWardNum = toNepaliNumerals(tempAddr.ward);
+    nepTempWard = `वडा नं. ${nepTempWardNum}`;
+    nepTempTole = transliterateWord(tempAddr.tole);
+    nepTempFullAddress = `${nepTempTole}, ${nepTempWard}, ${nepTempMunicipality}, ${nepTempDistrict}, ${nepTempProvince}`;
+  }
+
   const nepOccupation = OCCUPATIONS_DEVANAGARI[person.occupation] || transliterateWord(person.occupation);
   const nepJobTitle = OCCUPATIONS_DEVANAGARI[person.jobTitle] || nepOccupation;
   const nepDepartment = DEPARTMENTS_DEVANAGARI[person.department] || `${transliterateWord(person.department)} शाखा`;
@@ -772,6 +791,28 @@ export function generateDevanagariDetails(person: SyntheticPerson): DevanagariDe
     ward: nepWard,
     tole: nepTole,
     fullAddress: nepFullAddress,
+
+    permanentProvince: nepProvince,
+    permanentDistrict: nepDistrict,
+    permanentMunicipality: nepMunicipality,
+    permanentWard: nepWard,
+    permanentTole: nepTole,
+    permanentFullAddress: nepFullAddress,
+
+    tempProvince: nepTempProvince,
+    tempDistrict: nepTempDistrict,
+    tempMunicipality: nepTempMunicipality,
+    tempWard: nepTempWard,
+    tempTole: nepTempTole,
+    tempFullAddress: nepTempFullAddress,
+
+    currentProvince: nepTempProvince,
+    currentDistrict: nepTempDistrict,
+    currentMunicipality: nepTempMunicipality,
+    currentWard: nepTempWard,
+    currentTole: nepTempTole,
+    currentFullAddress: nepTempFullAddress,
+
     occupation: nepOccupation,
     jobTitle: nepJobTitle,
     department: nepDepartment,

@@ -27,11 +27,11 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Automatically detect Devanagari requirements if the field label or placeholder is in Devanagari script (e.g., `नाम (नेपालीमा)`, `ठेगाना`).
 
 ### 1.2 Permanent vs. Current/Temporary Address Distinction
-- [ ] **Prefix/Context Detection**:
+- [x] **Prefix/Context Detection**:
   - Distinguish between **Permanent Address** (स्थायी ठेगाना) and **Temporary / Current Address** (अस्थायी / हालको ठेगाना) using label heuristics (`permanent_`, `temp_`, `current_`, `sthayee_`, `asthyee_`).
-- [ ] **Same-as-Permanent Checkbox Auto-Sync**:
+- [x] **Same-as-Permanent Checkbox Auto-Sync**:
   - Detect and trigger "Same as Permanent Address" checkboxes (`#same_as_permanent`, `input[name*="sameAsPermanent"]`) to mirror realistic user behavior.
-- [ ] **Distinct Location Generation**:
+- [x] **Distinct Location Generation**:
   - If both addresses are present and independent, generate coherent dual addresses (e.g., Permanent: Syangja District, Current: Kathmandu Metropolitan City).
 
 ### 1.3 Nepali Calendar (Bikram Sambat) & Datepicker Integration

@@ -15,6 +15,29 @@ export interface DevanagariDetails {
   ward: string;
   tole: string;
   fullAddress: string;
+
+  // Permanent Address in Devanagari
+  permanentProvince?: string;
+  permanentDistrict?: string;
+  permanentMunicipality?: string;
+  permanentWard?: string;
+  permanentTole?: string;
+  permanentFullAddress?: string;
+
+  // Temporary / Current Address in Devanagari
+  tempProvince?: string;
+  tempDistrict?: string;
+  tempMunicipality?: string;
+  tempWard?: string;
+  tempTole?: string;
+  tempFullAddress?: string;
+  currentProvince?: string;
+  currentDistrict?: string;
+  currentMunicipality?: string;
+  currentWard?: string;
+  currentTole?: string;
+  currentFullAddress?: string;
+
   occupation: string;
   jobTitle: string;
   department: string;
@@ -55,6 +78,9 @@ export interface SyntheticPerson {
   telephone: string;   // Local area code + XXXXXX
   email: string;       // name.surnameXX@example.test
   address: NepalAddress;
+  permanentAddress?: NepalAddress;
+  temporaryAddress?: NepalAddress;
+  currentAddress?: NepalAddress;
   occupation: string;
   jobTitle: string;
   department: string;
@@ -106,11 +132,30 @@ export type SupportedFieldType =
   | 'phone'
   | 'telephone'
   | 'province'
+  | 'permanentProvince'
+  | 'temporaryProvince'
+  | 'currentProvince'
   | 'district'
+  | 'permanentDistrict'
+  | 'temporaryDistrict'
+  | 'currentDistrict'
   | 'municipality'
+  | 'permanentMunicipality'
+  | 'temporaryMunicipality'
+  | 'currentMunicipality'
   | 'ward'
+  | 'permanentWard'
+  | 'temporaryWard'
+  | 'currentWard'
   | 'tole'
+  | 'permanentTole'
+  | 'temporaryTole'
+  | 'currentTole'
   | 'address'
+  | 'permanentAddress'
+  | 'temporaryAddress'
+  | 'currentAddress'
+  | 'sameAsPermanent'
   | 'occupation'
   | 'jobTitle'
   | 'department'
@@ -151,6 +196,7 @@ export interface DetectedField {
   name?: string;
   id?: string;
   script?: FillScript;
+  addressScope?: 'permanent' | 'temporary';
 }
 
 export interface FillOptions {
