@@ -261,7 +261,7 @@ const PATTERN_RULES: MatchRule[] = [
   },
   {
     type: 'fullName',
-    regex: /(?:\b(full\s*name|your\s*name|applicant\s*name|customer\s*name|employee\s*name|pura\s*naam|purna\s*naam|^name$)\b|नाम\s*थर|पूरा\s*नाम)/i,
+    regex: /(?:\b(full\s*name|your\s*name|applicant\s*name|customer\s*name|employee\s*name|pura\s*naam|purna\s*naam|nepali\s*name|^name$)\b|नाम\s*थर|पूरा\s*नाम|नाम\s*\(?नेपालीमा\)?|^नाम$|\bनाम\b)/i,
     baseConfidence: 0.90,
   },
 
@@ -340,6 +340,30 @@ const AUTOCOMPLETE_MAP: Record<string, SupportedFieldType> = {
 };
 
 /**
+ * Detects whether an input field specifically targets Nepali Devanagari script.
+ */
+export function detectTargetScript(signals: {
+  label: string;
+  placeholder: string;
+  title: string;
+  name: string;
+  id: string;
+}): 'en' | 'np' | undefined {
+  const combined = `${signals.label} ${signals.placeholder} ${signals.title}`;
+  if (/[\u0900-\u097F]/.test(combined)) {
+    return 'np';
+  }
+  if (
+    /(?:\b(in\s*nepali|nepali\s*ma|nepalima|in\s*devanagari|devanagari)\b|_np\b|_nepali\b|nepali_)/i.test(
+      `${combined} ${signals.name} ${signals.id}`
+    )
+  ) {
+    return 'np';
+  }
+  return undefined;
+}
+
+/**
  * Multi-Signal Scoring Engine:
  * Weighs signals across attributes (type, autocomplete, label, name, id, placeholder, surrounding context)
  * and determines the best field type with confidence.
@@ -358,6 +382,8 @@ export function detectFieldType(element: HTMLElement): DetectedField {
   const placeholder = element.getAttribute('placeholder') || '';
   const title = element.getAttribute('title') || '';
 
+  const script = detectTargetScript({ label, placeholder, title, name: name || '', id: id || '' });
+
   // 1. Direct autocomplete signal (Highest precedence if matched)
   if (autocomplete && AUTOCOMPLETE_MAP[autocomplete]) {
     return {
@@ -367,15 +393,16 @@ export function detectFieldType(element: HTMLElement): DetectedField {
       label,
       name,
       id,
+      script,
     };
   }
 
   // 2. Direct HTML5 input type shortcuts
   if (inputType === 'password') {
-    return { element, type: 'password', confidence: 0.99, label, name, id };
+    return { element, type: 'password', confidence: 0.99, label, name, id, script };
   }
   if (inputType === 'email') {
-    return { element, type: 'email', confidence: 0.98, label, name, id };
+    return { element, type: 'email', confidence: 0.98, label, name, id, script };
   }
 
   // 3. Multi-Signal Scoring across weighted channels
@@ -438,36 +465,37 @@ export function detectFieldType(element: HTMLElement): DetectedField {
       label,
       name,
       id,
+      script,
     };
   }
 
   // 4. Fallback based on HTML5 element types
   if (inputType === 'tel') {
-    return { element, type: 'phone', confidence: 0.75, label, name, id };
+    return { element, type: 'phone', confidence: 0.75, label, name, id, script };
   }
   if (inputType === 'number') {
-    return { element, type: 'number', confidence: 0.65, label, name, id };
+    return { element, type: 'number', confidence: 0.65, label, name, id, script };
   }
   if (inputType === 'date') {
-    return { element, type: 'date', confidence: 0.65, label, name, id };
+    return { element, type: 'date', confidence: 0.65, label, name, id, script };
   }
   if (inputType === 'url') {
-    return { element, type: 'url', confidence: 0.75, label, name, id };
+    return { element, type: 'url', confidence: 0.75, label, name, id, script };
   }
   if (tagName === 'textarea') {
-    return { element, type: 'textarea', confidence: 0.6, label, name, id };
+    return { element, type: 'textarea', confidence: 0.6, label, name, id, script };
   }
   if (inputType === 'checkbox') {
-    return { element, type: 'text', confidence: 0.6, label, name, id };
+    return { element, type: 'text', confidence: 0.6, label, name, id, script };
   }
   if (inputType === 'radio') {
-    return { element, type: 'gender', confidence: 0.6, label, name, id };
+    return { element, type: 'gender', confidence: 0.6, label, name, id, script };
   }
   if (inputType === 'text') {
-    return { element, type: 'text', confidence: 0.4, label, name, id };
+    return { element, type: 'text', confidence: 0.4, label, name, id, script };
   }
 
-  return { element, type: 'unknown', confidence: 0.0, label, name, id };
+  return { element, type: 'unknown', confidence: 0.0, label, name, id, script };
 }
 
 /**

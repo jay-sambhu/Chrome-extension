@@ -12,12 +12,14 @@ async function executeFillOnActiveTab(regenerate = false) {
 
     const data = (await chrome.storage.local.get([
       'selectedProfile',
+      'fillScript',
       'fillCategories',
       'aiEnabled',
       'lastGeneratedPerson',
     ])) as Record<string, any>;
 
     const profile: ProfileType = data.selectedProfile || 'general';
+    const fillScript = data.fillScript || 'en';
     const fillCategories = data.fillCategories || {
       personal: true,
       contact: true,
@@ -33,6 +35,7 @@ async function executeFillOnActiveTab(regenerate = false) {
 
     const options: FillOptions = {
       profile,
+      fillScript,
       fillCategories,
       enableAiClassification,
     };
@@ -72,6 +75,7 @@ chrome.runtime.onInstalled.addListener(async (details: chrome.runtime.InstalledD
     console.log('[Nepal Test Filler] Extension installed for the first time.');
     await chrome.storage.local.set({
       selectedProfile: 'general',
+      fillScript: 'en',
       fillCategories: {
         personal: true,
         contact: true,

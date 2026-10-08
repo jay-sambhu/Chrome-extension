@@ -5,6 +5,7 @@ import {
   Municipality,
 } from './nepalDataEngine';
 import { Gender, NepalAddress, ProfileType, SyntheticPerson } from '../types';
+import { generateDevanagariDetails } from './devanagariEngine';
 
 function sample<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
@@ -278,7 +279,7 @@ export function generateSyntheticPerson(
     panNumber = generatePanNumber();
   }
 
-  return {
+  const person: SyntheticPerson = {
     profileType,
     honorific,
     firstName,
@@ -324,4 +325,8 @@ export function generateSyntheticPerson(
     citizenshipNumber,
     nationalId,
   };
+
+  person.devanagari = generateDevanagariDetails(person);
+
+  return person;
 }

@@ -17,7 +17,7 @@ import {
   Globe,
   RefreshCw,
 } from 'lucide-react';
-import { ProfileType, SyntheticPerson } from '../types';
+import { ProfileType, FillScript, SyntheticPerson } from '../types';
 import { generateSyntheticPerson } from '../generator/personGenerator';
 import {
   getAllDomainMappings,
@@ -45,6 +45,7 @@ const PROFILES: Array<{ id: ProfileType; label: string; desc: string; icon: Reac
 export function App() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profiles');
   const [defaultProfile, setDefaultProfile] = useState<ProfileType>('general');
+  const [defaultScript, setDefaultScript] = useState<FillScript>('en');
   const [fillCategories, setFillCategories] = useState({
     personal: true,
     contact: true,
@@ -81,6 +82,7 @@ export function App() {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       const data = (await chrome.storage.local.get([
         'selectedProfile',
+        'fillScript',
         'fillCategories',
         'aiEnabled',
         'geminiApiKey',
@@ -89,6 +91,9 @@ export function App() {
       if (data.selectedProfile) {
         setDefaultProfile(data.selectedProfile);
         setPreviewPerson(generateSyntheticPerson(data.selectedProfile));
+      }
+      if (data.fillScript === 'en' || data.fillScript === 'np') {
+        setDefaultScript(data.fillScript);
       }
       if (data.fillCategories) {
         setFillCategories(data.fillCategories);
@@ -116,6 +121,7 @@ export function App() {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       await chrome.storage.local.set({
         selectedProfile: defaultProfile,
+        fillScript: defaultScript,
         fillCategories,
       });
       showToast('General preferences saved successfully!');

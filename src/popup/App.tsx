@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { generateSyntheticPerson } from '../generator/personGenerator';
-import { FillOptions, PageFieldInspection, SupportedFieldType, SyntheticPerson } from '../types';
+import { FillOptions, FillScript, PageFieldInspection, SupportedFieldType, SyntheticPerson } from '../types';
 import {
   Check,
   RefreshCw,
@@ -18,6 +18,7 @@ import {
   Trash2,
   ShieldCheck,
   Globe,
+  Languages,
 } from 'lucide-react';
 import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 import {
@@ -32,6 +33,7 @@ import { VALID_FIELD_TYPES } from '../services/geminiClassifier';
 export const App: React.FC = () => {
   const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
   const [profile, setProfile] = useState<FillOptions['profile']>('general');
+  const [script, setScript] = useState<FillScript>('en');
   const [categories, setCategories] = useState<FillOptions['fillCategories']>({
     personal: true,
     contact: true,
@@ -64,10 +66,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       chrome.storage.local.get(
-        ['selectedProfile', 'fillCategories', 'geminiApiKey', 'geminiAiClassificationEnabled', 'geminiModel'],
+        ['selectedProfile', 'fillCategories', 'fillScript', 'geminiApiKey', 'geminiAiClassificationEnabled', 'geminiModel'],
         (res: Record<string, any>) => {
           if (res.selectedProfile) setProfile(res.selectedProfile);
           if (res.fillCategories) setCategories(res.fillCategories);
+          if (res.fillScript === 'en' || res.fillScript === 'np') setScript(res.fillScript);
           if (res.geminiApiKey) setGeminiApiKey(res.geminiApiKey);
           if (typeof res.geminiAiClassificationEnabled === 'boolean') {
             setAiEnabled(res.geminiAiClassificationEnabled);
@@ -79,6 +82,13 @@ export const App: React.FC = () => {
 
     getCacheStats().then((stats) => setCacheCount(stats.count));
   }, []);
+
+  const toggleScript = (newScript: FillScript) => {
+    setScript(newScript);
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.set({ fillScript: newScript });
+    }
+  };
 
   const handleSaveAiSettings = () => {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -210,6 +220,7 @@ export const App: React.FC = () => {
       // Check if we can inject or message content script
       const options: FillOptions = {
         profile,
+        fillScript: script,
         fillCategories: categories,
         enableAiClassification: aiEnabled,
       };
@@ -439,6 +450,30 @@ export const App: React.FC = () => {
             </div>
           </div>
 
+          {/* Script Selection (English vs Devanagari) */}
+          <div className="section-block">
+            <div className="section-label-row">
+              <span className="section-label">Fill Script / भाषा लिपि</span>
+              <span className="script-badge-tag">{script === 'np' ? 'नेपाली (युनिकोड)' : 'English'}</span>
+            </div>
+            <div className="script-toggle-group">
+              <button
+                type="button"
+                className={`script-btn ${script === 'en' ? 'active' : ''}`}
+                onClick={() => toggleScript('en')}
+              >
+                English (Romanized)
+              </button>
+              <button
+                type="button"
+                className={`script-btn ${script === 'np' ? 'active' : ''}`}
+                onClick={() => toggleScript('np')}
+              >
+                नेपाली (Devanagari)
+              </button>
+            </div>
+          </div>
+
           {/* Data Categories */}
           <div className="section-block">
             <div className="section-label">Included Categories</div>
@@ -461,8 +496,16 @@ export const App: React.FC = () => {
           {/* Synthetic Person Preview Card */}
           <div className="preview-card">
             <div className="preview-header">
-              <div className="preview-name">{person.honorific} {person.fullName}</div>
-              <div className="preview-gender-badge">{person.profileType.toUpperCase()} • {person.gender}, {person.age}y</div>
+              <div className="preview-name">
+                {script === 'np' && person.devanagari
+                  ? `${person.devanagari.honorific} ${person.devanagari.fullName}`
+                  : `${person.honorific} ${person.fullName}`}
+              </div>
+              <div className="preview-gender-badge">
+                {person.profileType.toUpperCase()} •{' '}
+                {script === 'np' && person.devanagari ? person.devanagari.gender : person.gender},{' '}
+                {person.age}y
+              </div>
             </div>
 
             <div className="preview-row">
@@ -477,13 +520,19 @@ export const App: React.FC = () => {
 
             <div className="preview-row">
               <MapPin size={12} className="preview-icon" />
-              <span className="preview-text">{person.address.fullAddress}</span>
+              <span className="preview-text">
+                {script === 'np' && person.devanagari
+                  ? person.devanagari.fullAddress
+                  : person.address.fullAddress}
+              </span>
             </div>
 
             <div className="preview-row">
               <Briefcase size={12} className="preview-icon" />
               <span className="preview-text">
-                {person.school
+                {script === 'np' && person.devanagari
+                  ? `${person.devanagari.occupation} • ${person.devanagari.companyName}`
+                  : person.school
                   ? `${person.grade || 'Student'} • ${person.school}`
                   : person.businessName
                   ? `${person.jobTitle} • ${person.businessName}`

@@ -1,6 +1,7 @@
 import {
   FillOptions,
   FillResult,
+  FillScript,
   PageFieldInspection,
   SupportedFieldType,
   SyntheticPerson,
@@ -54,20 +55,28 @@ export function setNativeChecked(element: HTMLInputElement, checked: boolean): v
 
 
 /**
- * Finds the closest matching option for a select element.
+ * Finds the closest matching option for a select element, supporting dual-script alternatives.
  */
-function fillSelectElement(select: HTMLSelectElement, targetValue: string): boolean {
+function fillSelectElement(select: HTMLSelectElement, targetValue: string, altValue?: string): boolean {
   const options = Array.from(select.options);
   if (options.length === 0) return false;
 
   const targetLower = targetValue.toLowerCase();
+  const altLower = altValue ? altValue.toLowerCase() : undefined;
 
-  // Try exact value or text match
+  // Try exact value or text match with primary target
   let matchedOption = options.find(
     (opt) => opt.value.toLowerCase() === targetLower || opt.text.toLowerCase().includes(targetLower)
   );
 
-  // If no match, check for partial match
+  // If no match and alternative exists (e.g. English alternative for Devanagari or vice-versa)
+  if (!matchedOption && altLower) {
+    matchedOption = options.find(
+      (opt) => opt.value.toLowerCase() === altLower || opt.text.toLowerCase().includes(altLower)
+    );
+  }
+
+  // If no match, check for partial match with primary target
   if (!matchedOption) {
     matchedOption = options.find((opt) => {
       const optText = opt.text.toLowerCase();
@@ -161,9 +170,74 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
 }
 
 /**
- * Maps a detected field type to the corresponding value from the synthetic person.
+ * Maps a detected field type to the corresponding value from the synthetic person,
+ * supporting both English and authentic Devanagari (नेपाली युनिकोड) scripts.
  */
-export function getFieldValue(type: SupportedFieldType, person: SyntheticPerson): string {
+export function getFieldValue(
+  type: SupportedFieldType,
+  person: SyntheticPerson,
+  script?: FillScript
+): string {
+  if (script === 'np' && person.devanagari) {
+    const dev = person.devanagari;
+    switch (type) {
+      case 'fullName':
+        return dev.fullName;
+      case 'firstName':
+        return dev.firstName;
+      case 'middleName':
+        return dev.middleName || '';
+      case 'lastName':
+        return dev.lastName;
+      case 'gender':
+        return dev.gender;
+      case 'province':
+        return dev.province;
+      case 'district':
+        return dev.district;
+      case 'municipality':
+        return dev.municipality;
+      case 'ward':
+        return dev.ward.replace('वडा नं. ', '');
+      case 'tole':
+        return dev.tole;
+      case 'address':
+        return dev.fullAddress;
+      case 'occupation':
+        return dev.occupation;
+      case 'jobTitle':
+        return dev.jobTitle;
+      case 'designation':
+        return dev.designation || dev.jobTitle;
+      case 'department':
+        return dev.department;
+      case 'companyName':
+        return dev.companyName;
+      case 'businessName':
+        return dev.businessName || dev.companyName;
+      case 'businessType':
+        return dev.businessType || 'प्राइभेट लिमिटेड';
+      case 'school':
+        return dev.school || dev.companyName;
+      case 'grade':
+        return dev.grade || 'स्नातक तह';
+      case 'faculty':
+        return dev.faculty || 'विज्ञान तथा प्रविधि संकाय';
+      case 'guardianName':
+        return dev.guardianName || dev.fullName;
+      case 'cooperative':
+        return dev.cooperative || 'साना किसान कृषि सहकारी संस्था लि.';
+      case 'cropType':
+        return dev.cropType || 'धान (Paddy)';
+      case 'subject':
+        return dev.subject || 'कम्प्युटर विज्ञान';
+      case 'textarea':
+        return `${dev.fullName}को विवरण। ठेगाना: ${dev.fullAddress}। पेशा: ${dev.occupation}।`;
+      case 'text':
+        return dev.fullName;
+    }
+  }
+
   switch (type) {
     case 'fullName':
       return person.fullName;
@@ -273,7 +347,8 @@ function fillFieldElement(
   fieldType: SupportedFieldType,
   person: SyntheticPerson,
   fieldIdentifier: string | undefined,
-  details: FillResult['details']
+  details: FillResult['details'],
+  script?: FillScript
 ): boolean {
   const tagName = elem.tagName.toLowerCase();
   const inputType = (elem.getAttribute('type') || '').toLowerCase();
@@ -289,7 +364,10 @@ function fillFieldElement(
   if (role === 'radio') {
     if (fieldType === 'gender') {
       const text = (elem.textContent || elem.getAttribute('value') || elem.getAttribute('aria-label') || '').toLowerCase();
-      if (text.includes(person.gender.toLowerCase())) {
+      const matchGender =
+        text.includes(person.gender.toLowerCase()) ||
+        (person.devanagari && text.includes(person.devanagari.gender.toLowerCase()));
+      if (matchGender) {
         elem.setAttribute('aria-checked', 'true');
         elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         details.push({ field: fieldIdentifier || 'custom_radio_gender', type: fieldType, value: true });
@@ -304,7 +382,12 @@ function fillFieldElement(
     if (fieldType === 'gender' && inputType === 'radio') {
       const val = inputElem.value.toLowerCase();
       const genderLower = person.gender.toLowerCase();
-      if (val.includes(genderLower) || genderLower.includes(val)) {
+      const devGender = person.devanagari?.gender.toLowerCase();
+      if (
+        val.includes(genderLower) ||
+        genderLower.includes(val) ||
+        (devGender && (val.includes(devGender) || devGender.includes(val)))
+      ) {
         setNativeChecked(inputElem, true);
         details.push({ field: fieldIdentifier || 'radio_gender', type: fieldType, value: true });
         return true;
@@ -319,12 +402,14 @@ function fillFieldElement(
     return false;
   }
 
+  const primaryValue = getFieldValue(fieldType, person, script);
+  const altValue = script === 'np' ? getFieldValue(fieldType, person, 'en') : getFieldValue(fieldType, person, 'np');
+
   // Handle Select elements
   if (tagName === 'select') {
     const selectElem = elem as HTMLSelectElement;
-    const targetVal = getFieldValue(fieldType, person);
-    if (targetVal && fillSelectElement(selectElem, targetVal)) {
-      details.push({ field: fieldIdentifier || 'select', type: fieldType, value: targetVal });
+    if (primaryValue && fillSelectElement(selectElem, primaryValue, altValue)) {
+      details.push({ field: fieldIdentifier || 'select', type: fieldType, value: primaryValue });
       return true;
     }
     return false;
@@ -332,12 +417,11 @@ function fillFieldElement(
 
   // Handle Combobox / React-Select / Ant Design / MUI Autocomplete search input
   if (role === 'combobox' || elem.hasAttribute('aria-autocomplete') || elem.classList.contains('ant-select-selection-search-input')) {
-    const value = getFieldValue(fieldType, person);
-    if (value) {
-      setNativeValue(elem as HTMLInputElement, value);
+    if (primaryValue) {
+      setNativeValue(elem as HTMLInputElement, primaryValue);
       elem.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
       elem.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
-      details.push({ field: fieldIdentifier || 'combobox', type: fieldType, value });
+      details.push({ field: fieldIdentifier || 'combobox', type: fieldType, value: primaryValue });
       return true;
     }
   }
@@ -345,10 +429,9 @@ function fillFieldElement(
   // Handle Standard Input and Textarea elements
   if (tagName === 'input' || tagName === 'textarea') {
     const inputElem = elem as HTMLInputElement | HTMLTextAreaElement;
-    const value = getFieldValue(fieldType, person);
-    if (value) {
-      setNativeValue(inputElem, value);
-      details.push({ field: fieldIdentifier || 'input', type: fieldType, value });
+    if (primaryValue) {
+      setNativeValue(inputElem, primaryValue);
+      details.push({ field: fieldIdentifier || 'input', type: fieldType, value: primaryValue });
       return true;
     }
   }
@@ -451,7 +534,8 @@ export function fillPage(
       continue;
     }
 
-    const filled = fillFieldElement(field.element, resolvedType, person, field.name || field.id, details);
+    const targetScript = field.script || options.fillScript || 'en';
+    const filled = fillFieldElement(field.element, resolvedType, person, field.name || field.id, details, targetScript);
     if (filled) {
       fieldsFilledCount++;
     }
@@ -483,11 +567,13 @@ export async function fillPageAsync(
   const unhandledUnknowns: typeof detected = [];
 
   for (const field of detected) {
+    const targetScript = field.script || options.fillScript || 'en';
+
     // 1. Check custom domain mapping overrides first (Highest priority!)
     const rule = matchDomainRule(field.element, domainRules);
     if (rule) {
       if (isCategoryEnabled(rule.targetType, options)) {
-        const filled = fillFieldElement(field.element, rule.targetType, person, field.name || field.id, details);
+        const filled = fillFieldElement(field.element, rule.targetType, person, field.name || field.id, details, targetScript);
         if (filled) fieldsFilledCount++;
       }
       continue;
@@ -495,10 +581,10 @@ export async function fillPageAsync(
 
     // 2. Rule-based local heuristic detector
     if (field.type !== 'unknown' && field.type !== 'text' && isCategoryEnabled(field.type, options)) {
-      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
+      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details, targetScript);
       if (filled) fieldsFilledCount++;
     } else if (field.type === 'text' && field.confidence > 0.4 && isCategoryEnabled(field.type, options)) {
-      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
+      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details, targetScript);
       if (filled) fieldsFilledCount++;
     } else {
       unhandledUnknowns.push(field);
@@ -529,12 +615,14 @@ export async function fillPageAsync(
 
       const classification = await classifyUnknownField(payload, geminiConfig);
       if (classification.fieldType !== 'unknown' && isCategoryEnabled(classification.fieldType, options)) {
+        const targetScript = field.script || options.fillScript || 'en';
         const filled = fillFieldElement(
           field.element,
           classification.fieldType,
           person,
           field.name || field.id,
-          details
+          details,
+          targetScript
         );
         if (filled) fieldsFilledCount++;
       }

@@ -1,5 +1,35 @@
 export type Gender = 'Male' | 'Female' | 'Other';
 export type ProfileType = 'general' | 'student' | 'employee' | 'business' | 'teacher' | 'farmer';
+export type FillScript = 'en' | 'np';
+
+export interface DevanagariDetails {
+  honorific: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  fullName: string;
+  gender: string;
+  province: string;
+  district: string;
+  municipality: string;
+  ward: string;
+  tole: string;
+  fullAddress: string;
+  occupation: string;
+  jobTitle: string;
+  department: string;
+  companyName: string;
+  designation?: string;
+  businessName?: string;
+  businessType?: string;
+  school?: string;
+  grade?: string;
+  faculty?: string;
+  guardianName?: string;
+  cropType?: string;
+  cooperative?: string;
+  subject?: string;
+}
 
 export interface NepalAddress {
   province: string;
@@ -31,6 +61,9 @@ export interface SyntheticPerson {
   companyName: string;
   username: string;
   password: string;
+
+  // Devanagari (नेपाली युनिकोड) localized attributes
+  devanagari?: DevanagariDetails;
 
   // Archetype-specific attributes
   studentId?: string;
@@ -117,10 +150,12 @@ export interface DetectedField {
   label?: string;
   name?: string;
   id?: string;
+  script?: FillScript;
 }
 
 export interface FillOptions {
   profile: ProfileType;
+  fillScript?: FillScript;
   fillCategories: {
     personal: boolean;
     contact: boolean;
