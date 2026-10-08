@@ -16,9 +16,11 @@ import {
   Settings,
   Eye,
   EyeOff,
-  Trash2,
   ShieldCheck,
   Globe,
+  Activity,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 import {
@@ -28,7 +30,11 @@ import {
   normalizeDomain,
   saveDomainRule,
 } from '../services/domainMapping';
-import { VALID_FIELD_TYPES } from '../services/geminiClassifier';
+import {
+  VALID_FIELD_TYPES,
+  testGeminiConnection,
+  GeminiConnectionTestResult,
+} from '../services/geminiClassifier';
 
 export const App: React.FC = () => {
   const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
@@ -63,6 +69,8 @@ export const App: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   const [cacheCount, setCacheCount] = useState(0);
   const [aiSaveMsg, setAiSaveMsg] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<GeminiConnectionTestResult | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   // Load preferences from chrome.storage
   useEffect(() => {
@@ -136,6 +144,24 @@ export const App: React.FC = () => {
     setCacheCount(0);
     setAiSaveMsg('Cache cleared!');
     setTimeout(() => setAiSaveMsg(null), 2500);
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestStatus(null);
+    try {
+      const res = await testGeminiConnection(geminiApiKey, geminiModel);
+      setTestStatus(res);
+    } catch (err) {
+      setTestStatus({
+        success: false,
+        status: 'error',
+        message: `Connection test failed: ${err instanceof Error ? err.message : String(err)}`,
+        model: geminiModel,
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const loadActiveDomainAndInspect = useCallback(async () => {
@@ -441,7 +467,10 @@ export const App: React.FC = () => {
                   className="settings-input"
                   placeholder="AIzaSy..."
                   value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  onChange={(e) => {
+                    setGeminiApiKey(e.target.value);
+                    if (testStatus) setTestStatus(null);
+                  }}
                 />
                 <button
                   type="button"
@@ -457,7 +486,10 @@ export const App: React.FC = () => {
               <select
                 className="settings-select"
                 value={geminiModel}
-                onChange={(e) => setGeminiModel(e.target.value)}
+                onChange={(e) => {
+                  setGeminiModel(e.target.value);
+                  if (testStatus) setTestStatus(null);
+                }}
               >
                 <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Fast & Lightweight)</option>
                 <option value="gemini-3.8-flash">gemini-3.8-flash (Balanced)</option>
@@ -483,10 +515,31 @@ export const App: React.FC = () => {
 
           <div className="ai-settings-actions">
             {aiSaveMsg && <span className="save-status-msg">{aiSaveMsg}</span>}
+            <button
+              type="button"
+              className="btn-test-connection"
+              onClick={handleTestConnection}
+              disabled={isTesting}
+              title="Test Gemini API key validity and quota balance"
+            >
+              <Activity size={11} className={isTesting ? 'animate-spin' : ''} />
+              {isTesting ? 'Testing...' : 'Test Connection'}
+            </button>
             <button type="button" className="btn-save-settings" onClick={handleSaveAiSettings}>
               Save Settings
             </button>
           </div>
+
+          {testStatus && (
+            <div className={`popup-test-status ${testStatus.success ? 'success' : 'error'}`}>
+              {testStatus.success ? (
+                <CheckCircle2 size={13} className="test-status-icon" />
+              ) : (
+                <AlertCircle size={13} className="test-status-icon" />
+              )}
+              <span className="test-status-text">{testStatus.message}</span>
+            </div>
+          )}
         </div>
       )}
 

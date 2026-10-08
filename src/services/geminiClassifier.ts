@@ -237,3 +237,145 @@ export async function classifyUnknownField(
     };
   }
 }
+
+export interface GeminiConnectionTestResult {
+  success: boolean;
+  status: 'valid' | 'invalid_key' | 'quota_exhausted' | 'model_not_found' | 'network_error' | 'error';
+  message: string;
+  model: string;
+  latencyMs?: number;
+}
+
+/**
+ * Validates a Gemini API key and checks model responsiveness and quota balance
+ * by issuing a minimal generation request.
+ */
+export async function testGeminiConnection(
+  apiKey: string,
+  modelName: string = 'gemini-3.5-flash-lite',
+  fetchFn: typeof fetch = fetch
+): Promise<GeminiConnectionTestResult> {
+  const trimmedKey = (apiKey || '').trim();
+  const selectedModel = (modelName || '').trim() || 'gemini-3.5-flash-lite';
+
+  if (!trimmedKey) {
+    return {
+      success: false,
+      status: 'invalid_key',
+      message: 'API key is missing. Please enter your Google Gemini API key.',
+      model: selectedModel,
+    };
+  }
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    selectedModel
+  )}:generateContent?key=${encodeURIComponent(trimmedKey)}`;
+
+  const startTime = Date.now();
+
+  try {
+    const response = await fetchFn(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: 'ping' }],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: 1,
+          temperature: 0,
+        },
+      }),
+    });
+
+    const latencyMs = Date.now() - startTime;
+
+    if (response.ok) {
+      return {
+        success: true,
+        status: 'valid',
+        message: `Connection verified! Gemini API key is valid and quota is available (${latencyMs}ms).`,
+        model: selectedModel,
+        latencyMs,
+      };
+    }
+
+    let errorData: any = null;
+    let errorMsg = '';
+    try {
+      errorData = await response.json();
+      errorMsg = errorData?.error?.message || '';
+    } catch {
+      // response might not be json
+    }
+
+    const errorStatus = String(errorData?.error?.status || '').toUpperCase();
+    const rawMsg = errorMsg.toLowerCase();
+
+    // 400 or 403: Invalid Key / Permission
+    if (
+      response.status === 400 ||
+      response.status === 403 ||
+      errorStatus === 'INVALID_ARGUMENT' ||
+      errorStatus === 'PERMISSION_DENIED' ||
+      rawMsg.includes('api key') ||
+      rawMsg.includes('invalid')
+    ) {
+      return {
+        success: false,
+        status: 'invalid_key',
+        message: `Invalid API key: ${errorMsg || 'Please check your Gemini API key from Google AI Studio.'}`,
+        model: selectedModel,
+        latencyMs,
+      };
+    }
+
+    // 429: Quota exhausted / Resource exhausted
+    if (
+      response.status === 429 ||
+      errorStatus === 'RESOURCE_EXHAUSTED' ||
+      rawMsg.includes('quota') ||
+      rawMsg.includes('exhausted')
+    ) {
+      return {
+        success: false,
+        status: 'quota_exhausted',
+        message: `Quota exceeded (HTTP 429): ${errorMsg || 'Your Gemini API quota limit has been reached.'}`,
+        model: selectedModel,
+        latencyMs,
+      };
+    }
+
+    // 404: Model not found
+    if (response.status === 404 || errorStatus === 'NOT_FOUND' || rawMsg.includes('not found')) {
+      return {
+        success: false,
+        status: 'model_not_found',
+        message: `Model not found (HTTP 404): Model '${selectedModel}' was not found or is unavailable.`,
+        model: selectedModel,
+        latencyMs,
+      };
+    }
+
+    return {
+      success: false,
+      status: 'error',
+      message: `Gemini API error (HTTP ${response.status}): ${errorMsg || response.statusText || 'Unexpected response'}`,
+      model: selectedModel,
+      latencyMs,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    return {
+      success: false,
+      status: 'network_error',
+      message: `Network error: Unable to connect to Gemini API (${err instanceof Error ? err.message : String(err)}).`,
+      model: selectedModel,
+      latencyMs,
+    };
+  }
+}

@@ -16,6 +16,8 @@ import {
   Save,
   Globe,
   RefreshCw,
+  Activity,
+  AlertCircle,
 } from 'lucide-react';
 import { ProfileType, FillScript, SyntheticPerson } from '../types';
 import { generateSyntheticPerson } from '../generator/personGenerator';
@@ -29,6 +31,10 @@ import {
   getCacheStats,
   clearClassificationCache,
 } from '../services/classificationCache';
+import {
+  testGeminiConnection,
+  GeminiConnectionTestResult,
+} from '../services/geminiClassifier';
 import './App.css';
 
 type SettingsTab = 'profiles' | 'mappings' | 'ai' | 'shortcuts' | 'backup';
@@ -59,6 +65,8 @@ export function App() {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [cacheCount, setCacheCount] = useState(0);
+  const [testStatus, setTestStatus] = useState<GeminiConnectionTestResult | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   // Domain mappings
   const [allMappings, setAllMappings] = useState<Record<string, DomainMappingConfig>>({});
@@ -144,9 +152,28 @@ export function App() {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       await chrome.storage.local.set({
         aiEnabled,
+        geminiAiClassificationEnabled: aiEnabled,
         geminiApiKey: apiKey.trim(),
       });
       showToast('AI classification settings updated!');
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestStatus(null);
+    try {
+      const res = await testGeminiConnection(apiKey);
+      setTestStatus(res);
+    } catch (err) {
+      setTestStatus({
+        success: false,
+        status: 'error',
+        message: `Connection test failed: ${err instanceof Error ? err.message : String(err)}`,
+        model: 'gemini-3.5-flash-lite',
+      });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -559,16 +586,45 @@ export function App() {
 
               <div className="setting-card">
                 <label><strong>Google Gemini API Key:</strong></label>
-                <input
-                  type="password"
-                  className="input-text"
-                  placeholder="AIzaSy..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
+                <div className="api-key-input-row">
+                  <input
+                    type="password"
+                    className="input-text"
+                    placeholder="AIzaSy..."
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value);
+                      if (testStatus) setTestStatus(null);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="secondary-btn test-conn-btn"
+                    onClick={handleTestConnection}
+                    disabled={isTesting}
+                    title="Validate API key format and quota balance with Gemini API"
+                  >
+                    <Activity size={14} className={isTesting ? 'animate-spin' : ''} />
+                    {isTesting ? 'Testing...' : 'Test Connection'}
+                  </button>
+                </div>
                 <p className="help-text">
                   Your key is saved exclusively in your browser’s local storage (`chrome.storage.local`).
                 </p>
+
+                {testStatus && (
+                  <div className={`connection-feedback-card ${testStatus.success ? 'success' : 'error'}`}>
+                    {testStatus.success ? (
+                      <CheckCircle2 size={16} className="status-icon" />
+                    ) : (
+                      <AlertCircle size={16} className="status-icon" />
+                    )}
+                    <div className="feedback-content">
+                      <strong>{testStatus.success ? 'Connection Verified' : 'Validation Error'}</strong>
+                      <p>{testStatus.message}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="setting-card">
