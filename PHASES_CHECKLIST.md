@@ -132,25 +132,28 @@ Significantly improve the rule-based detection engine to achieve near-100% accur
 
 ---
 
-## ⏳ Phase 5 — Gemini Integration (Isolated & Local-First)
+## ✅ Phase 5 — Gemini Integration (Isolated & Local-First) (Completed)
 
 Incorporate Google Gemini strictly as an optional intelligence layer without compromising local speed or privacy.
 
-- [ ] **Architectural Boundaries (Strict Requirements Compliance)**:
-  - [ ] Form filling operates 100% offline without Gemini.
-  - [ ] Zero Gemini calls for fields identified by the local rule engine.
-  - [ ] No API keys hardcoded into extension distribution files.
-  - [ ] Secure user-provided API key stored in `chrome.storage.local` (or backend proxy option).
-- [ ] **Unknown Field Classifier**:
-  - [ ] Triggered only when a field fails local detection and user has opted into AI classification.
-  - [ ] Privacy sanitization: payload contains **only** `{ name, id, placeholder, label, type }` — never webpage content or user data.
-  - [ ] Structured Output: prompts Gemini to classify into the strict `SupportedFieldType` enum with confidence score.
-- [ ] **Classification Caching Engine**:
-  - [ ] Hash key generator: `hash(domain + name + id + placeholder + label)`.
-  - [ ] Persist classification results in `chrome.storage.local` so Gemini is never queried twice for the same field pattern.
-- [ ] **Administrative Dataset Expansion Script**:
-  - [ ] Node.js development script using `@google/genai` to expand names, occupations, toles, and institutions for new releases.
-  - [ ] Automated validation step to ensure newly generated synthetic entries meet schema constraints before merging into JSON datasets.
+- [x] **Architectural Boundaries (Strict Requirements Compliance)**:
+  - [x] Form filling operates 100% offline without Gemini.
+  - [x] Zero Gemini calls for fields identified by the local rule engine.
+  - [x] No API keys hardcoded into extension distribution files.
+  - [x] Secure user-provided API key stored in `chrome.storage.local` (or backend proxy option).
+- [x] **Unknown Field Classifier**:
+  - [x] Triggered only when a field fails local detection and user has opted into AI classification.
+  - [x] Privacy sanitization: payload contains **only** `{ domain, name, id, placeholder, label, type }` — never webpage content or user data.
+  - [x] Structured Output: prompts Gemini to classify into the strict `SupportedFieldType` enum with confidence score.
+- [x] **Classification Caching Engine**:
+  - [x] Hash key generator: `hash(domain + name + id + placeholder + label)`.
+  - [x] Persist classification results in `chrome.storage.local` so Gemini is never queried twice for the same field pattern.
+- [x] **Administrative Dataset Expansion Script**:
+  - [x] Node.js development script using `@google/genai` to expand names, occupations, toles, and institutions for new releases.
+  - [x] Automated validation step to ensure newly generated synthetic entries meet schema constraints before merging into JSON datasets.
+- [x] **Comprehensive Test Suite**:
+  - [x] 8 targeted tests in `tests/geminiClassifier.test.ts` for sanitization, hash consistency, prompt generation, offline boundary fallback, cache hits, and error handling.
+  - [x] 11 targeted tests in `tests/datasetExpansion.test.ts` for schema validation of names, occupations, companies, and institutions.
 
 ---
 

@@ -128,6 +128,8 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'studentId':
     case 'guardianName':
     case 'guardianPhone':
+    case 'citizenshipNumber':
+    case 'nationalId':
       return fillCategories.personal;
 
     case 'username':
@@ -207,6 +209,10 @@ export function getFieldValue(type: SupportedFieldType, person: SyntheticPerson)
       return person.employeeId || 'EMP-10293';
     case 'panNumber':
       return person.panNumber || '102938475';
+    case 'citizenshipNumber':
+      return person.citizenshipNumber || `27-01-78-${Math.floor(10000 + Math.random() * 90000)}`;
+    case 'nationalId':
+      return person.nationalId || `NID-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     case 'vatNumber':
       return person.vatNumber || `VAT-${person.panNumber || '102938475'}`;
     case 'subject':
@@ -234,7 +240,67 @@ export function getFieldValue(type: SupportedFieldType, person: SyntheticPerson)
 }
 
 /**
+ * Helper to fill a single DOM element based on resolved field type.
+ */
+function fillFieldElement(
+  elem: HTMLElement,
+  fieldType: SupportedFieldType,
+  person: SyntheticPerson,
+  fieldIdentifier: string | undefined,
+  details: FillResult['details']
+): boolean {
+  const tagName = elem.tagName.toLowerCase();
+  const inputType = (elem.getAttribute('type') || '').toLowerCase();
+
+  // Handle Checkboxes & Radio buttons
+  if (tagName === 'input' && (inputType === 'checkbox' || inputType === 'radio')) {
+    const inputElem = elem as HTMLInputElement;
+    if (fieldType === 'gender' && inputType === 'radio') {
+      const val = inputElem.value.toLowerCase();
+      const genderLower = person.gender.toLowerCase();
+      if (val.includes(genderLower) || genderLower.includes(val)) {
+        setNativeChecked(inputElem, true);
+        details.push({ field: fieldIdentifier || 'radio_gender', type: fieldType, value: true });
+        return true;
+      }
+    } else if (inputType === 'checkbox') {
+      if (/terms|agree|policy/i.test(fieldIdentifier || '')) {
+        setNativeChecked(inputElem, true);
+        details.push({ field: fieldIdentifier || 'checkbox', type: fieldType, value: true });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Handle Select elements
+  if (tagName === 'select') {
+    const selectElem = elem as HTMLSelectElement;
+    const targetVal = getFieldValue(fieldType, person);
+    if (targetVal && fillSelectElement(selectElem, targetVal)) {
+      details.push({ field: fieldIdentifier || 'select', type: fieldType, value: targetVal });
+      return true;
+    }
+    return false;
+  }
+
+  // Handle Input and Textarea elements
+  if (tagName === 'input' || tagName === 'textarea') {
+    const inputElem = elem as HTMLInputElement | HTMLTextAreaElement;
+    const value = getFieldValue(fieldType, person);
+    if (value) {
+      setNativeValue(inputElem, value);
+      details.push({ field: fieldIdentifier || 'input', type: fieldType, value });
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Fills detected fields on the webpage using the synthetic person and user options.
+ * Runs 100% offline using local heuristic rule engine.
  */
 export function fillPage(
   person: SyntheticPerson,
@@ -250,51 +316,78 @@ export function fillPage(
       continue;
     }
 
-    const elem = field.element;
-    const tagName = elem.tagName.toLowerCase();
-    const inputType = (elem.getAttribute('type') || '').toLowerCase();
-
-    // Handle Checkboxes & Radio buttons
-    if (tagName === 'input' && (inputType === 'checkbox' || inputType === 'radio')) {
-      const inputElem = elem as HTMLInputElement;
-      if (field.type === 'gender' && inputType === 'radio') {
-        const val = inputElem.value.toLowerCase();
-        const genderLower = person.gender.toLowerCase();
-        if (val.includes(genderLower) || genderLower.includes(val)) {
-          setNativeChecked(inputElem, true);
-          fieldsFilledCount++;
-          details.push({ field: field.name || field.id || 'radio_gender', type: field.type, value: true });
-        }
-      } else if (inputType === 'checkbox') {
-        // Only check if terms or general agreement
-        if (/terms|agree|policy/i.test(field.name || field.id || '')) {
-          setNativeChecked(inputElem, true);
-          fieldsFilledCount++;
-          details.push({ field: field.name || field.id || 'checkbox', type: field.type, value: true });
-        }
-      }
-      continue;
+    const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
+    if (filled) {
+      fieldsFilledCount++;
     }
+  }
 
-    // Handle Select elements
-    if (tagName === 'select') {
-      const selectElem = elem as HTMLSelectElement;
-      const targetVal = getFieldValue(field.type, person);
-      if (targetVal && fillSelectElement(selectElem, targetVal)) {
-        fieldsFilledCount++;
-        details.push({ field: field.name || field.id || 'select', type: field.type, value: targetVal });
-      }
-      continue;
+  return {
+    success: true,
+    fieldsFilledCount,
+    details,
+  };
+}
+
+/**
+ * Asynchronous page filler that executes local detection first, and optionally
+ * uses Gemini to classify unknown fields if opted-in and configured.
+ */
+export async function fillPageAsync(
+  person: SyntheticPerson,
+  options: FillOptions,
+  geminiConfig?: import('../types').GeminiConfig,
+  root: Document | HTMLElement = document
+): Promise<FillResult> {
+  const detected = scanFormFields(root);
+  const details: FillResult['details'] = [];
+  let fieldsFilledCount = 0;
+  const unhandledUnknowns: typeof detected = [];
+
+  for (const field of detected) {
+    if (field.type !== 'unknown' && field.type !== 'text' && isCategoryEnabled(field.type, options)) {
+      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
+      if (filled) fieldsFilledCount++;
+    } else if (field.type === 'text' && field.confidence > 0.4 && isCategoryEnabled(field.type, options)) {
+      const filled = fillFieldElement(field.element, field.type, person, field.name || field.id, details);
+      if (filled) fieldsFilledCount++;
+    } else {
+      unhandledUnknowns.push(field);
     }
+  }
 
-    // Handle Input and Textarea elements
-    if (tagName === 'input' || tagName === 'textarea') {
-      const inputElem = elem as HTMLInputElement | HTMLTextAreaElement;
-      const value = getFieldValue(field.type, person);
-      if (value) {
-        setNativeValue(inputElem, value);
-        fieldsFilledCount++;
-        details.push({ field: field.name || field.id || 'input', type: field.type, value });
+  // If AI classification is enabled and configured, classify unhandled fields
+  if (
+    options.enableAiClassification &&
+    geminiConfig?.enabled &&
+    geminiConfig.apiKey &&
+    unhandledUnknowns.length > 0
+  ) {
+    const { classifyUnknownField } = await import('../services/geminiClassifier');
+    const domain =
+      typeof window !== 'undefined' && window.location?.hostname ? window.location.hostname : 'localhost';
+
+    for (const field of unhandledUnknowns) {
+      const elem = field.element as HTMLInputElement;
+      const payload: import('../types').FieldClassificationPayload = {
+        domain,
+        name: field.name,
+        id: field.id,
+        placeholder: elem.placeholder,
+        label: field.label,
+        type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
+      };
+
+      const classification = await classifyUnknownField(payload, geminiConfig);
+      if (classification.fieldType !== 'unknown' && isCategoryEnabled(classification.fieldType, options)) {
+        const filled = fillFieldElement(
+          field.element,
+          classification.fieldType,
+          person,
+          field.name || field.id,
+          details
+        );
+        if (filled) fieldsFilledCount++;
       }
     }
   }

@@ -55,6 +55,8 @@ export interface SyntheticPerson {
 
   cooperative?: string;
   cropType?: string;
+  citizenshipNumber?: string;
+  nationalId?: string;
 }
 
 export type SupportedFieldType =
@@ -90,6 +92,8 @@ export type SupportedFieldType =
   | 'businessName'
   | 'designation'
   | 'subject'
+  | 'citizenshipNumber'
+  | 'nationalId'
   | 'number'
   | 'date'
   | 'text'
@@ -115,6 +119,7 @@ export interface FillOptions {
     address: boolean;
     professional: boolean;
   };
+  enableAiClassification?: boolean;
 }
 
 export interface FillResult {
@@ -128,8 +133,38 @@ export interface FillResult {
   errors?: string[];
 }
 
+export interface GeminiConfig {
+  apiKey: string;
+  enabled: boolean;
+  model?: string;
+}
+
+export interface FieldClassificationPayload {
+  domain: string;
+  name?: string;
+  id?: string;
+  placeholder?: string;
+  label?: string;
+  type?: string;
+}
+
+export interface ClassificationResult {
+  fieldType: SupportedFieldType;
+  confidence: number;
+  reasoning?: string;
+  fromCache?: boolean;
+}
+
+export interface ClassificationCacheEntry {
+  fieldType: SupportedFieldType;
+  confidence: number;
+  reasoning?: string;
+  timestamp: number;
+}
+
 export type ExtensionMessage =
   | { action: 'SCAN_PAGE' }
   | { action: 'FILL_PAGE'; person: SyntheticPerson; options: FillOptions }
   | { action: 'GET_LAST_GENERATED_PERSON' }
+  | { action: 'CLASSIFY_FIELD'; payload: FieldClassificationPayload }
   | { action: 'PING' };

@@ -2,7 +2,23 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import { generateSyntheticPerson } from '../generator/personGenerator';
 import { FillOptions, SyntheticPerson } from '../types';
-import { Check, RefreshCw, Zap, Sparkles, MapPin, Phone, Mail, Briefcase } from 'lucide-react';
+import {
+  Check,
+  RefreshCw,
+  Zap,
+  Sparkles,
+  MapPin,
+  Phone,
+  Mail,
+  Briefcase,
+  Bot,
+  Settings,
+  Eye,
+  EyeOff,
+  Trash2,
+  ShieldCheck,
+} from 'lucide-react';
+import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 
 export const App: React.FC = () => {
   const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
@@ -16,15 +32,60 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [isFilling, setIsFilling] = useState(false);
 
+  // Gemini AI Settings State
+  const [showAiSettings, setShowAiSettings] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('gemini-3.5-flash-lite');
+  const [showKey, setShowKey] = useState(false);
+  const [cacheCount, setCacheCount] = useState(0);
+  const [aiSaveMsg, setAiSaveMsg] = useState<string | null>(null);
+
   // Load preferences from chrome.storage
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.get(['selectedProfile', 'fillCategories'], (res: Record<string, any>) => {
-        if (res.selectedProfile) setProfile(res.selectedProfile);
-        if (res.fillCategories) setCategories(res.fillCategories);
-      });
+      chrome.storage.local.get(
+        ['selectedProfile', 'fillCategories', 'geminiApiKey', 'geminiAiClassificationEnabled', 'geminiModel'],
+        (res: Record<string, any>) => {
+          if (res.selectedProfile) setProfile(res.selectedProfile);
+          if (res.fillCategories) setCategories(res.fillCategories);
+          if (res.geminiApiKey) setGeminiApiKey(res.geminiApiKey);
+          if (typeof res.geminiAiClassificationEnabled === 'boolean') {
+            setAiEnabled(res.geminiAiClassificationEnabled);
+          }
+          if (res.geminiModel) setGeminiModel(res.geminiModel);
+        }
+      );
     }
+
+    getCacheStats().then((stats) => setCacheCount(stats.count));
   }, []);
+
+  const handleSaveAiSettings = () => {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.set(
+        {
+          geminiApiKey,
+          geminiAiClassificationEnabled: aiEnabled,
+          geminiModel,
+        },
+        () => {
+          setAiSaveMsg('Saved successfully!');
+          setTimeout(() => setAiSaveMsg(null), 2500);
+        }
+      );
+    } else {
+      setAiSaveMsg('Saved locally.');
+      setTimeout(() => setAiSaveMsg(null), 2500);
+    }
+  };
+
+  const handleClearCache = async () => {
+    await clearClassificationCache();
+    setCacheCount(0);
+    setAiSaveMsg('Cache cleared!');
+    setTimeout(() => setAiSaveMsg(null), 2500);
+  };
 
   const handleProfileChange = (newProfile: FillOptions['profile']) => {
     setProfile(newProfile);
@@ -72,7 +133,11 @@ export const App: React.FC = () => {
       }
 
       // Check if we can inject or message content script
-      const options: FillOptions = { profile, fillCategories: categories };
+      const options: FillOptions = {
+        profile,
+        fillCategories: categories,
+        enableAiClassification: aiEnabled,
+      };
 
       chrome.tabs.sendMessage(tab.id, { action: 'FILL_PAGE', person, options }, async (response: any) => {
         const lastError = chrome.runtime.lastError;
@@ -147,7 +212,115 @@ export const App: React.FC = () => {
             <div className="brand-subtitle">Realistic Synthetic Test Data</div>
           </div>
         </div>
+        <button
+          type="button"
+          className={`btn-icon-header ${showAiSettings ? 'active' : ''}`}
+          onClick={() => setShowAiSettings(!showAiSettings)}
+          title="Gemini AI Settings"
+        >
+          <Settings size={16} />
+        </button>
       </header>
+
+      {/* Mode Indicator Pill */}
+      <div className="mode-pill-row">
+        <span className={`mode-pill ${aiEnabled && geminiApiKey ? 'ai-active' : 'offline'}`}>
+          {aiEnabled && geminiApiKey ? (
+            <>
+              <Bot size={12} />
+              AI Unknown Field Fallback Active
+            </>
+          ) : (
+            <>
+              <ShieldCheck size={12} />
+              100% Offline Local Engine
+            </>
+          )}
+        </span>
+      </div>
+
+      {/* Collapsible AI Settings Panel */}
+      {showAiSettings && (
+        <div className="ai-settings-card">
+          <div className="ai-settings-header">
+            <div className="ai-settings-title">
+              <Bot size={14} />
+              <span>Gemini AI Field Classifier</span>
+            </div>
+            <span className="privacy-tag">Optional</span>
+          </div>
+
+          <p className="ai-settings-desc">
+            Classifies non-standard fields that fail local heuristic rules. Form filling operates 100% locally by default.
+          </p>
+
+          <label className="toggle-label-row">
+            <span>Enable Unknown Field Classification</span>
+            <input
+              type="checkbox"
+              className="custom-toggle"
+              checked={aiEnabled}
+              onChange={(e) => setAiEnabled(e.target.checked)}
+            />
+          </label>
+
+          {aiEnabled && (
+            <div className="ai-config-fields">
+              <div className="input-group-label">Google Gemini API Key</div>
+              <div className="api-key-input-wrapper">
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  className="settings-input"
+                  placeholder="AIzaSy..."
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn-toggle-key"
+                  onClick={() => setShowKey(!showKey)}
+                  title={showKey ? 'Hide key' : 'Show key'}
+                >
+                  {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+
+              <div className="input-group-label">Gemini Model</div>
+              <select
+                className="settings-select"
+                value={geminiModel}
+                onChange={(e) => setGeminiModel(e.target.value)}
+              >
+                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Fast & Lightweight)</option>
+                <option value="gemini-3.8-flash">gemini-3.8-flash (Balanced)</option>
+              </select>
+
+              <div className="cache-info-row">
+                <span className="cache-count-label">
+                  Cached fields: <strong>{cacheCount}</strong>
+                </span>
+                {cacheCount > 0 && (
+                  <button type="button" className="btn-clear-cache" onClick={handleClearCache}>
+                    <Trash2 size={12} /> Clear Cache
+                  </button>
+                )}
+              </div>
+
+              <div className="privacy-notice">
+                <ShieldCheck size={12} />
+                <span>Payloads are strictly sanitized (name, label, id only). Webpage content is never transmitted.</span>
+              </div>
+            </div>
+          )}
+
+          <div className="ai-settings-actions">
+            {aiSaveMsg && <span className="save-status-msg">{aiSaveMsg}</span>}
+            <button type="button" className="btn-save-settings" onClick={handleSaveAiSettings}>
+              Save Settings
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Profile Selector */}
       <div className="section-block">
