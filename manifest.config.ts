@@ -27,6 +27,8 @@ export default defineManifest(() => ({
     {
       matches: ['<all_urls>'],
       js: ['src/content/index.ts'],
+      all_frames: true,
+      match_about_blank: true,
     },
   ],
   permissions: ['storage', 'activeTab', 'scripting', 'contextMenus'],

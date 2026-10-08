@@ -316,14 +316,20 @@ function createMenuElement(): HTMLElement {
     const { options, person } = await getStoredOptions();
 
     if (action === 'fill-form') {
-      const targetRoot = activeTargetElement?.closest('form') || document;
+      const targetRoot =
+        activeTargetElement?.closest('form') ||
+        ((activeTargetElement?.getRootNode ? activeTargetElement.getRootNode() : null) as ShadowRoot | Document) ||
+        document;
       fillPage(person, options, targetRoot);
       flashBadgeSuccess();
     } else if (action === 'fill-field' && activeTargetElement) {
       fillSingleField(activeTargetElement, person, options);
       flashBadgeSuccess();
     } else if (action === 'revert-form') {
-      const targetRoot = activeTargetElement?.closest('form') || document;
+      const targetRoot =
+        activeTargetElement?.closest('form') ||
+        ((activeTargetElement?.getRootNode ? activeTargetElement.getRootNode() : null) as ShadowRoot | Document) ||
+        document;
       revertForm(targetRoot);
       flashBadgeSuccess();
     }
@@ -464,7 +470,8 @@ function handleViewportChange() {
  */
 function handleFocusIn(e: FocusEvent) {
   if (!isBadgeEnabled) return;
-  const target = e.target as Element | null;
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  const target = (path[0] || e.target) as Element | null;
   if (isFillableField(target)) {
     cancelHide();
     activeTargetElement = target;
@@ -474,7 +481,11 @@ function handleFocusIn(e: FocusEvent) {
 
 function handleMouseOver(e: MouseEvent) {
   if (!isBadgeEnabled) return;
-  const target = (e.target as Element)?.closest('input, textarea, select, [role="checkbox"], [role="radio"]');
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  const rawTarget = (path[0] || e.target) as Element | null;
+  const target = rawTarget?.closest
+    ? rawTarget.closest('input, textarea, select, [role="checkbox"], [role="radio"]')
+    : rawTarget;
   if (isFillableField(target)) {
     cancelHide();
     activeTargetElement = target;
@@ -483,7 +494,8 @@ function handleMouseOver(e: MouseEvent) {
 }
 
 function handleFocusOut(e: FocusEvent) {
-  const related = e.relatedTarget as Element | null;
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  const related = (path[0] || e.relatedTarget) as Element | null;
   if (related && isFillableField(related)) {
     return;
   }

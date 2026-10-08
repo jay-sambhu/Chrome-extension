@@ -87,9 +87,9 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Multi-step application wizards (Step 1: Personal -> Step 2: Address -> Step 3: Education) will retain the exact same persona instead of generating new random individuals on every page.
 
 ### 2.4 Shadow DOM & `<iframe>` Form Filling
-- [ ] **Deep DOM Traversal**:
+- [x] **Deep DOM Traversal**:
   - Traverse open Shadow DOM roots (`element.shadowRoot`) in custom web components.
-- [ ] **Cross-Frame Filling**:
+- [x] **Cross-Frame Filling**:
   - Handle embedded `<iframe>` elements commonly used in payment gateway modal dialogues (eSewa / Khalti checkout forms).
 
 ---

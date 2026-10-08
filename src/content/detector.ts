@@ -5,16 +5,20 @@ import { toEnglishNumerals } from '../generator/devanagariEngine';
  * Extracts the most relevant human-readable label from the DOM for an input element.
  */
 export function getFieldLabel(element: HTMLElement): string {
+  const rootNode = (element.getRootNode ? element.getRootNode() : document) as Document | ShadowRoot;
+
   // 1. Explicit <label for="id">
   if (element.id) {
-    const labelElem = document.querySelector(`label[for="${CSS.escape(element.id)}"]`);
+    const labelElem =
+      (rootNode.querySelector && rootNode.querySelector(`label[for="${CSS.escape(element.id)}"]`)) ||
+      (typeof document !== 'undefined' && document.querySelector ? document.querySelector(`label[for="${CSS.escape(element.id)}"]`) : null);
     if (labelElem && labelElem.textContent) {
       return labelElem.textContent.trim();
     }
   }
 
   // 2. Enclosing <label>
-  const parentLabel = element.closest('label');
+  const parentLabel = element.closest ? element.closest('label') : null;
   if (parentLabel && parentLabel.textContent) {
     return parentLabel.textContent.trim();
   }
@@ -27,7 +31,10 @@ export function getFieldLabel(element: HTMLElement): string {
 
   const ariaLabelledBy = element.getAttribute('aria-labelledby');
   if (ariaLabelledBy) {
-    const labelledByElem = document.getElementById(ariaLabelledBy);
+    const labelledByElem =
+      (rootNode.getElementById && rootNode.getElementById(ariaLabelledBy)) ||
+      (rootNode.querySelector && rootNode.querySelector(`#${CSS.escape(ariaLabelledBy)}`)) ||
+      (typeof document !== 'undefined' && document.getElementById ? document.getElementById(ariaLabelledBy) : null);
     if (labelledByElem && labelledByElem.textContent) {
       return labelledByElem.textContent.trim();
     }
@@ -36,7 +43,10 @@ export function getFieldLabel(element: HTMLElement): string {
   // 4. aria-describedby
   const ariaDescribedBy = element.getAttribute('aria-describedby');
   if (ariaDescribedBy) {
-    const describedByElem = document.getElementById(ariaDescribedBy);
+    const describedByElem =
+      (rootNode.getElementById && rootNode.getElementById(ariaDescribedBy)) ||
+      (rootNode.querySelector && rootNode.querySelector(`#${CSS.escape(ariaDescribedBy)}`)) ||
+      (typeof document !== 'undefined' && document.getElementById ? document.getElementById(ariaDescribedBy) : null);
     if (describedByElem && describedByElem.textContent && describedByElem.textContent.length < 80) {
       return describedByElem.textContent.trim();
     }
@@ -1037,9 +1047,16 @@ export function detectFieldType(element: HTMLElement): DetectedField {
 }
 
 /**
- * Scans the DOM tree for all active, interactive form fields.
+ * Recursively traverses a DOM tree, penetrating open Shadow DOM roots
+ * and accessible embedded <iframe> elements to collect all interactive form controls.
  */
-export function scanFormFields(root: Document | HTMLElement = document): DetectedField[] {
+export function queryDeepFormElements(
+  root: Document | HTMLElement | ShadowRoot = document,
+  visited: Set<Node> = new Set()
+): HTMLElement[] {
+  if (!root || visited.has(root)) return [];
+  visited.add(root);
+
   const selector =
     'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([disabled]), ' +
     'textarea:not([disabled]), ' +
@@ -1047,7 +1064,54 @@ export function scanFormFields(root: Document | HTMLElement = document): Detecte
     '[role="checkbox"]:not([aria-disabled="true"]):not(input), ' +
     '[role="radio"]:not([aria-disabled="true"]):not(input), ' +
     '[role="combobox"]:not([aria-disabled="true"]):not(input):not(select)';
-  const elements = Array.from(root.querySelectorAll<HTMLElement>(selector));
 
+  const collected: HTMLElement[] = [];
+
+  // 1. Direct matches in current root
+  try {
+    const directMatches = Array.from(root.querySelectorAll<HTMLElement>(selector));
+    collected.push(...directMatches);
+  } catch {
+    // ignore query errors
+  }
+
+  // 2. Search for custom web components with open Shadow DOM and embedded iframes
+  try {
+    const allElements = Array.from(root.querySelectorAll<HTMLElement>('*'));
+    for (const el of allElements) {
+      // Check for open shadow root on custom element
+      if (el.shadowRoot && !visited.has(el.shadowRoot)) {
+        const shadowMatches = queryDeepFormElements(el.shadowRoot, visited);
+        collected.push(...shadowMatches);
+      }
+
+      // Check for embedded accessible iframes (e.g. payment gateway modals like eSewa / Khalti)
+      if (el.tagName.toLowerCase() === 'iframe') {
+        try {
+          const iframe = el as HTMLIFrameElement;
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframeDoc && !visited.has(iframeDoc)) {
+            const iframeMatches = queryDeepFormElements(iframeDoc, visited);
+            collected.push(...iframeMatches);
+          }
+        } catch {
+          // Cross-origin iframe security block, handled via all_frames content script or postMessage
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Deduplicate
+  return Array.from(new Set(collected));
+}
+
+/**
+ * Scans the DOM tree for all active, interactive form fields,
+ * including those nested in open Shadow DOM roots and embedded iframes.
+ */
+export function scanFormFields(root: Document | HTMLElement | ShadowRoot = document): DetectedField[] {
+  const elements = queryDeepFormElements(root);
   return elements.map(detectFieldType);
 }

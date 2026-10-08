@@ -1,5 +1,5 @@
 import { scanFormFields } from './detector';
-import { clearForm, fillPageAsync, inspectPageFields, revertForm } from './filler';
+import { clearForm, fillPage, fillPageAsync, inspectPageFields, revertForm } from './filler';
 import { ExtensionMessage, GeminiConfig } from '../types';
 import { classifyUnknownField } from '../services/geminiClassifier';
 import { getDomainMapping } from '../services/domainMapping';
@@ -17,6 +17,35 @@ console.log('[Nepal Test Filler] Content script active.');
 // Initialize inline floating badge
 if (typeof document !== 'undefined') {
   initFloatingBadge(document);
+}
+
+function broadcastToChildFrames(payload: any) {
+  if (typeof document === 'undefined') return;
+  const iframes = document.querySelectorAll('iframe');
+  iframes.forEach((iframe) => {
+    try {
+      iframe.contentWindow?.postMessage(payload, '*');
+    } catch {
+      // ignore cross-domain postMessage errors
+    }
+  });
+}
+
+// Cross-frame listener for embedded subframes (e.g. eSewa / Khalti payment dialogs)
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (event: MessageEvent) => {
+    if (!event.data || typeof event.data !== 'object') return;
+    if (event.data.__nepal_filler_cross_frame__) {
+      const { action, person, options } = event.data;
+      if (action === 'FILL_PAGE' && person && options) {
+        fillPage(person, options, document);
+      } else if (action === 'UNDO_FILL') {
+        revertForm(document);
+      } else if (action === 'CLEAR_FORM') {
+        clearForm(document);
+      }
+    }
+  });
 }
 
 function showInPageFeedback(text: string) {
@@ -142,6 +171,7 @@ chrome.runtime.onMessage.addListener(
     if (message.action === 'UNDO_FILL') {
       try {
         const result = revertForm(document);
+        broadcastToChildFrames({ __nepal_filler_cross_frame__: true, action: 'UNDO_FILL' });
         showInPageFeedback(
           result.action === 'reverted'
             ? `Reverted ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
@@ -158,6 +188,7 @@ chrome.runtime.onMessage.addListener(
     if (message.action === 'CLEAR_FORM') {
       try {
         const result = clearForm(document);
+        broadcastToChildFrames({ __nepal_filler_cross_frame__: true, action: 'CLEAR_FORM' });
         showInPageFeedback(`Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`);
         sendResponse({ status: 'ok', result });
       } catch (err) {
@@ -235,6 +266,15 @@ chrome.runtime.onMessage.addListener(
             document,
             domainConfig?.rules || []
           );
+
+          // Broadcast to embedded payment/dialog iframes (eSewa / Khalti modals)
+          broadcastToChildFrames({
+            __nepal_filler_cross_frame__: true,
+            action: 'FILL_PAGE',
+            person: message.person,
+            options: message.options,
+          });
+
           console.log(`[Nepal Test Filler] Successfully filled ${result.fieldsFilledCount} fields.`);
           sendResponse({ status: 'ok', result });
         } catch (err) {

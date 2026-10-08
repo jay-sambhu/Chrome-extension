@@ -998,7 +998,7 @@ function fillFieldElement(
  * 3. Unmapped / Generic Fallback
  */
 export function inspectPageFields(
-  root: Document | HTMLElement = document,
+  root: Document | HTMLElement | ShadowRoot = document,
   domainRules: FieldMappingRule[] = []
 ): PageFieldInspection[] {
   const detected = scanFormFields(root);
@@ -1080,7 +1080,7 @@ export function clearSnapshot(): void {
  * Captures an instantaneous snapshot of all active form elements on the page
  * before any automated data is populated.
  */
-export function captureFormSnapshot(root: Document | HTMLElement = document): FormSnapshot {
+export function captureFormSnapshot(root: Document | HTMLElement | ShadowRoot = document): FormSnapshot {
   const detected = scanFormFields(root);
   const fields: FieldSnapshot[] = [];
 
@@ -1142,7 +1142,7 @@ export function captureFormSnapshot(root: Document | HTMLElement = document): Fo
  * If no snapshot exists, clears all interactive form fields on the page.
  */
 export function revertForm(
-  root: Document | HTMLElement = document,
+  root: Document | HTMLElement | ShadowRoot = document,
   snapshot?: FormSnapshot | null
 ): UndoResult {
   const targetSnapshot = snapshot !== undefined ? snapshot : lastFormSnapshot;
@@ -1221,7 +1221,7 @@ export function revertForm(
 /**
  * 1-Click Clear Form: Resets all active interactive fields on the page.
  */
-export function clearForm(root: Document | HTMLElement = document): UndoResult {
+export function clearForm(root: Document | HTMLElement | ShadowRoot = document): UndoResult {
   const detected = scanFormFields(root);
   let revertedCount = 0;
   const details: NonNullable<UndoResult['details']> = [];
@@ -1289,7 +1289,7 @@ export function clearForm(root: Document | HTMLElement = document): UndoResult {
 export function fillPage(
   person: SyntheticPerson,
   options: FillOptions,
-  root: Document | HTMLElement = document,
+  root: Document | HTMLElement | ShadowRoot = document,
   domainRules: FieldMappingRule[] = []
 ): FillResult {
   // Capture initial snapshot before populating test data
@@ -1340,7 +1340,7 @@ export async function fillPageAsync(
   person: SyntheticPerson,
   options: FillOptions,
   geminiConfig?: import('../types').GeminiConfig,
-  root: Document | HTMLElement = document,
+  root: Document | HTMLElement | ShadowRoot = document,
   domainRules: FieldMappingRule[] = []
 ): Promise<FillResult> {
   // Capture initial snapshot before populating test data
