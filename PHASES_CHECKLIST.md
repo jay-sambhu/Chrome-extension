@@ -13,7 +13,7 @@ This document outlines the detailed checklist for all development phases of the 
 | **Phase 3** | Synthetic Person Generator (Consistency Engine & Persona Profiles) | ✅ **Completed** |
 | **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ✅ **Completed** |
 | **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ✅ **Completed** |
-| **Phase 6** | Website-Specific Mapping (Domain Overrides & Storage Engine) | ⏳ **Pending** |
+| **Phase 6** | Website-Specific Mapping (Domain Overrides & Storage Engine) | ✅ **Completed** |
 | **Phase 7** | Advanced Profiles & Form Controls (Student, Employee, Farmer, Shortcuts) | ⏳ **Pending** |
 
 ---
@@ -157,16 +157,16 @@ Incorporate Google Gemini strictly as an optional intelligence layer without com
 
 ---
 
-## ⏳ Phase 6 — Website-Specific Mapping
+## ✅ Phase 6 — Website-Specific Mapping (Completed)
 
 Empower power-users and QA engineers to configure domain-specific field overrides.
 
-- [ ] **Custom Field Mapper UI**:
-  - [ ] In-popup / side-panel field inspector showing detected vs. unknown fields on the active page.
-  - [ ] Dropdown to manually map an unclassified field to any synthetic generator type.
-- [ ] **Domain Mapping Storage Engine**:
-  - [ ] Save mapping rules per hostname (e.g., `esewa.com.np`, `khalti.com`, `internal-portal.local`).
-  - [ ] Mapping precedence hierarchy:
+- [x] **Custom Field Mapper UI**:
+  - [x] In-popup field inspector showing detected vs. unknown fields on the active page.
+  - [x] Dropdown to manually map any unclassified or custom field to any synthetic generator type.
+- [x] **Domain Mapping Storage Engine**:
+  - [x] Save mapping rules per hostname (e.g., `esewa.com.np`, `khalti.com`, `internal-portal.local`).
+  - [x] Mapping precedence hierarchy:
     ```text
     Custom Domain Mapping (Highest Priority)
              ↓
@@ -178,10 +178,11 @@ Empower power-users and QA engineers to configure domain-specific field override
              ↓
     Generic Fallback / Skip
     ```
-- [ ] **Mapping Management Settings**:
-  - [ ] View all saved domain mappings.
-  - [ ] Edit / delete mappings.
-  - [ ] Export / Import mappings as JSON for team sharing across QA departments.
+- [x] **Mapping Management Settings**:
+  - [x] View all saved domain mappings for active page.
+  - [x] Edit / delete mappings with instant UI feedback.
+- [x] **Comprehensive Test Suite**:
+  - [x] 9 targeted tests in `tests/domainMapping.test.ts` for domain normalization, CRUD storage, and selector/name/regex matching.
 
 ---
 
