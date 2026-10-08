@@ -16,6 +16,7 @@ import {
   Settings,
   Eye,
   EyeOff,
+  Trash2,
   ShieldCheck,
   Globe,
   Activity,

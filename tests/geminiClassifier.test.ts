@@ -4,6 +4,7 @@ import {
   classifyUnknownField,
   normalizeFieldType,
   sanitizePayload,
+  testGeminiConnection,
 } from '../src/services/geminiClassifier';
 import {
   clearClassificationCache,
@@ -214,6 +215,168 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
       expect(result.fieldType).toBe('unknown');
       expect(result.confidence).toBe(0);
       expect(result.reasoning).toContain('Network or fetch exception');
+    });
+  });
+
+  describe('Phase 3.1 — Gemini Test Connection & Instant Validation', () => {
+    it('fails fast if API key is empty or whitespace without calling fetch', async () => {
+      let fetchCalled = false;
+      const mockFetch: typeof fetch = async () => {
+        fetchCalled = true;
+        return {} as any;
+      };
+
+      const result = await testGeminiConnection('   ', 'gemini-3.5-flash-lite', mockFetch);
+      expect(fetchCalled).toBe(false);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('invalid_key');
+      expect(result.message).toContain('API key is missing');
+    });
+
+    it('verifies valid connection with latency when API returns 200 OK', async () => {
+      let requestedUrl = '';
+      let requestBody: any = null;
+
+      const mockFetch: typeof fetch = async (url, init) => {
+        requestedUrl = String(url);
+        requestBody = JSON.parse(String(init?.body || '{}'));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [
+              {
+                content: {
+                  parts: [{ text: 'pong' }],
+                },
+              },
+            ],
+          }),
+        } as any;
+      };
+
+      const result = await testGeminiConnection('valid-test-key-123', 'gemini-3.5-flash-lite', mockFetch);
+      expect(requestedUrl).toContain('models/gemini-3.5-flash-lite:generateContent');
+      expect(requestedUrl).toContain('key=valid-test-key-123');
+      expect(requestBody.contents[0].parts[0].text).toBe('ping');
+      expect(result.success).toBe(true);
+      expect(result.status).toBe('valid');
+      expect(result.message).toContain('Connection verified');
+      expect(typeof result.latencyMs).toBe('number');
+      expect(result.model).toBe('gemini-3.5-flash-lite');
+    });
+
+    it('handles HTTP 400 with invalid API key response', async () => {
+      const mockFetch: typeof fetch = async () =>
+        ({
+          ok: false,
+          status: 400,
+          json: async () => ({
+            error: {
+              code: 400,
+              message: 'API key not valid. Please pass a valid API key.',
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        } as any);
+
+      const result = await testGeminiConnection('bad-key', 'gemini-3.5-flash-lite', mockFetch);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('invalid_key');
+      expect(result.message).toContain('Invalid API key');
+      expect(result.message).toContain('API key not valid');
+    });
+
+    it('handles HTTP 403 permission denied', async () => {
+      const mockFetch: typeof fetch = async () =>
+        ({
+          ok: false,
+          status: 403,
+          json: async () => ({
+            error: {
+              code: 403,
+              message: 'Method doesn\'t allow unregistered callers.',
+              status: 'PERMISSION_DENIED',
+            },
+          }),
+        } as any);
+
+      const result = await testGeminiConnection('unauthorized-key', 'gemini-3.5-flash-lite', mockFetch);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('invalid_key');
+      expect(result.message).toContain('Invalid API key');
+    });
+
+    it('handles HTTP 429 quota exhaustion with specific quota message', async () => {
+      const mockFetch: typeof fetch = async () =>
+        ({
+          ok: false,
+          status: 429,
+          json: async () => ({
+            error: {
+              code: 429,
+              message: 'Resource has been exhausted (e.g. check quota).',
+              status: 'RESOURCE_EXHAUSTED',
+            },
+          }),
+        } as any);
+
+      const result = await testGeminiConnection('exhausted-key', 'gemini-3.5-flash-lite', mockFetch);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('quota_exhausted');
+      expect(result.message).toContain('Quota exceeded (HTTP 429)');
+      expect(result.message).toContain('Resource has been exhausted');
+    });
+
+    it('handles HTTP 404 when model is unavailable or misspelled', async () => {
+      const mockFetch: typeof fetch = async () =>
+        ({
+          ok: false,
+          status: 404,
+          json: async () => ({
+            error: {
+              code: 404,
+              message: 'models/non-existent-model is not found.',
+              status: 'NOT_FOUND',
+            },
+          }),
+        } as any);
+
+      const result = await testGeminiConnection('some-key', 'non-existent-model', mockFetch);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('model_not_found');
+      expect(result.message).toContain("Model 'non-existent-model' was not found");
+    });
+
+    it('handles general unexpected HTTP errors like 500 server error', async () => {
+      const mockFetch: typeof fetch = async () =>
+        ({
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+          json: async () => ({
+            error: {
+              code: 500,
+              message: 'Internal server error occurred.',
+            },
+          }),
+        } as any);
+
+      const result = await testGeminiConnection('valid-key', 'gemini-3.5-flash-lite', mockFetch);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('error');
+      expect(result.message).toContain('Gemini API error (HTTP 500)');
+    });
+
+    it('handles offline network exceptions gracefully', async () => {
+      const failingFetch: typeof fetch = async () => {
+        throw new TypeError('Failed to fetch: DNS resolution failed');
+      };
+
+      const result = await testGeminiConnection('valid-key', 'gemini-3.5-flash-lite', failingFetch);
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('network_error');
+      expect(result.message).toContain('Network error: Unable to connect to Gemini API');
     });
   });
 });

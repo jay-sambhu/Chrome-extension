@@ -97,7 +97,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
 ## 3. 🤖 AI & Gemini Classifier Refinements (Medium Priority)
 
 ### 3.1 "Test Connection" Button
-- [ ] **Instant API Key Validation**:
+- [x] **Instant API Key Validation**:
   - Add a "Test Connection" button in the Gemini Settings section to verify API key validity and quota balance with instant user feedback.
 
 ### 3.2 Nepali Administrative Prompt Context
