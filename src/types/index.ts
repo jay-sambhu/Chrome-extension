@@ -67,6 +67,14 @@ export interface DevanagariDetails {
   drivingLicenseCategory?: string;
   drivingLicenseIssueDate?: string;
   drivingLicenseExpiryDate?: string;
+
+  // FinTech, Banking & Digital Wallets in Devanagari
+  bankName?: string;
+  bankBranch?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+  esewaId?: string;
+  khaltiId?: string;
 }
 
 export interface NepalAddress {
@@ -143,6 +151,14 @@ export interface SyntheticPerson {
   drivingLicenseCategory?: string;
   drivingLicenseIssueDate?: string;
   drivingLicenseExpiryDate?: string;
+
+  // FinTech, Banking & Digital Wallets
+  bankName?: string;
+  bankBranch?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+  esewaId?: string;
+  khaltiId?: string;
 }
 
 export type SupportedFieldType =
@@ -171,6 +187,12 @@ export type SupportedFieldType =
   | 'drivingLicenseCategory'
   | 'drivingLicenseIssueDate'
   | 'drivingLicenseExpiryDate'
+  | 'bankName'
+  | 'bankBranch'
+  | 'bankAccountNumber'
+  | 'bankAccountName'
+  | 'esewaId'
+  | 'khaltiId'
   | 'email'
   | 'phone'
   | 'telephone'

@@ -17,6 +17,7 @@ import {
   triggerNepaliDatepickerHooks,
 } from '../generator/nepaliCalendar';
 import { toEnglishNumerals, toNepaliNumerals } from '../generator/devanagariEngine';
+import { COMMERCIAL_BANKS } from '../generator/bankingDetails';
 
 /**
  * Triggers native value change compatible with React, Vue, Angular and standard DOM.
@@ -192,6 +193,51 @@ function matchLicenseCategoryOption(
 }
 
 /**
+ * Matches a select option against Nepal commercial banks.
+ */
+function matchBankOption(
+  options: HTMLOptionElement[],
+  targetValue: string,
+  altValue?: string
+): HTMLOptionElement | undefined {
+  const all = [targetValue, altValue].filter(Boolean) as string[];
+  const isBank = all.some((s) => /bank|बैंक|nabil|nic|global|rbb|nimb|everest|sanima|prabhu|kumari|siddhartha/i.test(s));
+  if (!isBank) return undefined;
+
+  for (const b of COMMERCIAL_BANKS) {
+    const isTargetBank = all.some((s) => {
+      const sLow = s.toLowerCase();
+      return (
+        sLow.includes(b.shortName.toLowerCase()) ||
+        sLow.includes(b.nameEn.toLowerCase()) ||
+        s.includes(b.nameNp)
+      );
+    });
+
+    if (isTargetBank) {
+      const found = options.find((opt) => {
+        const val = opt.value.toLowerCase();
+        const text = opt.text.toLowerCase();
+        const shortLow = b.shortName.toLowerCase();
+        const nameEnLow = b.nameEn.toLowerCase();
+        return (
+          val.includes(shortLow) ||
+          text.includes(shortLow) ||
+          val.includes(nameEnLow) ||
+          text.includes(nameEnLow) ||
+          opt.value.includes(b.nameNp) ||
+          opt.text.includes(b.nameNp) ||
+          (b.swiftCode && (opt.value.toUpperCase() === b.swiftCode || opt.text.toUpperCase().includes(b.swiftCode)))
+        );
+      });
+      if (found) return found;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Finds the closest matching option for a select element, supporting dual-script alternatives.
  */
 function fillSelectElement(select: HTMLSelectElement, targetValue: string, altValue?: string): boolean {
@@ -226,6 +272,11 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
   // 5. License Category option matching
   if (!matchedOption) {
     matchedOption = matchLicenseCategoryOption(options, targetValue, altValue);
+  }
+
+  // 6. Commercial Bank option matching
+  if (!matchedOption) {
+    matchedOption = matchBankOption(options, targetValue, altValue);
   }
 
   // 5. Partial match with primary target
@@ -289,7 +340,13 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'drivingLicenseCategory':
     case 'drivingLicenseIssueDate':
     case 'drivingLicenseExpiryDate':
-      return fillCategories.personal;
+    case 'bankName':
+    case 'bankBranch':
+    case 'bankAccountNumber':
+    case 'bankAccountName':
+    case 'esewaId':
+    case 'khaltiId':
+      return fillCategories.personal || fillCategories.professional;
 
     case 'email':
     case 'phone':
@@ -508,6 +565,18 @@ export function getFieldValue(
         return dev.drivingLicenseIssueDate || (person.drivingLicenseIssueDate ? toNepaliNumerals(person.drivingLicenseIssueDate) : '');
       case 'drivingLicenseExpiryDate':
         return dev.drivingLicenseExpiryDate || (person.drivingLicenseExpiryDate ? toNepaliNumerals(person.drivingLicenseExpiryDate) : '');
+      case 'bankName':
+        return dev.bankName || 'नबिल बैंक लिमिटेड';
+      case 'bankBranch':
+        return dev.bankBranch || 'पुतलीसडक शाखा';
+      case 'bankAccountNumber':
+        return dev.bankAccountNumber || (person.bankAccountNumber ? toNepaliNumerals(person.bankAccountNumber) : '०१२३४५६७८९०१२३४५');
+      case 'bankAccountName':
+        return dev.bankAccountName || dev.fullName;
+      case 'esewaId':
+        return dev.esewaId || (person.esewaId ? toNepaliNumerals(person.esewaId) : (person.phone ? toNepaliNumerals(person.phone) : '९८४१२३४५६७'));
+      case 'khaltiId':
+        return dev.khaltiId || (person.khaltiId ? toNepaliNumerals(person.khaltiId) : (person.phone ? toNepaliNumerals(person.phone) : '९८४१२३४५६७'));
       case 'textarea':
         return `${dev.fullName}को विवरण। ठेगाना: ${dev.fullAddress}। पेशा: ${dev.occupation}।`;
       case 'text':
@@ -643,6 +712,18 @@ export function getFieldValue(
       return person.drivingLicenseIssueDate || '2021-03-10';
     case 'drivingLicenseExpiryDate':
       return person.drivingLicenseExpiryDate || '2026-03-09';
+    case 'bankName':
+      return person.bankName || 'Nabil Bank Limited';
+    case 'bankBranch':
+      return person.bankBranch || 'Putalisadak Branch';
+    case 'bankAccountNumber':
+      return person.bankAccountNumber || '0123456789012345';
+    case 'bankAccountName':
+      return person.bankAccountName || person.fullName;
+    case 'esewaId':
+      return person.esewaId || person.phone;
+    case 'khaltiId':
+      return person.khaltiId || person.phone;
     case 'vatNumber':
       return person.vatNumber || (person.panNumber ? `VAT-${person.panNumber}` : 'VAT-102938475');
     case 'cooperative':

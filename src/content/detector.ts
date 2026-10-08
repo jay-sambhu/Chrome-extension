@@ -162,6 +162,38 @@ const PATTERN_RULES: MatchRule[] = [
     baseConfidence: 0.95,
   },
 
+  // 3.1 FinTech, Banking & Digital Wallets
+  {
+    type: 'bankAccountNumber',
+    regex: /(?:\b(account\s*(no|number|num)|bank\s*acc(ount)?\s*(no|number|num)?|khata\s*(no|number|num))\b|खाता\s*नं|खाता\s*नम्बर|बैंक\s*खाता\s*नं|बैंक\s*खाता\s*नम्बर)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'bankAccountName',
+    regex: /(?:\b(account\s*holder(\s*name)?|acc(ount)?\s*name|khatawala(\s*ko)?\s*naam)\b|खातावालाको\s*नाम|खातावाल\s*नाम|खाताको\s*नाम)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'bankBranch',
+    regex: /(?:\b(bank\s*branch|branch\s*name|branch)\b|बैंक\s*शाखा|शाखा(को)?\s*नाम)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'bankName',
+    regex: /(?:\b(bank\s*name|commercial\s*bank|bank_name|bankname|bank)\b|बैंकको\s*नाम|बैंक\s*नाम|वाणिज्य\s*बैंक)/i,
+    baseConfidence: 0.95,
+  },
+  {
+    type: 'esewaId',
+    regex: /(?:\b(esewa\s*(id|no|num|number)?|e-sewa\s*(id|no|num|number)?)\b|ईसेवा(\s*आइडी)?|इसेवा(\s*आइडी)?)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'khaltiId',
+    regex: /(?:\b(khalti\s*(id|no|num|number)?)\b|खल्ती(\s*आइडी)?)/i,
+    baseConfidence: 0.98,
+  },
+
   // 4. Telephone / Landline
   {
     type: 'telephone',

@@ -13,6 +13,7 @@ import {
   generatePassportDetails,
   generateDrivingLicenseDetails,
 } from './governmentDocuments';
+import { generateBankingDetails } from './bankingDetails';
 
 function sample<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
@@ -337,6 +338,7 @@ export function generateSyntheticPerson(
   const nationalId = generateNationalId();
   const passport = generatePassportDetails(address.district, dob);
   const drivingLicense = generateDrivingLicenseDetails(address.province);
+  const banking = generateBankingDetails(fullName, `${firstName} ${lastName}`, address.district, phone);
 
   const person: SyntheticPerson = {
     profileType,
@@ -402,6 +404,14 @@ export function generateSyntheticPerson(
     drivingLicenseCategory: drivingLicense.drivingLicenseCategory,
     drivingLicenseIssueDate: drivingLicense.drivingLicenseIssueDate,
     drivingLicenseExpiryDate: drivingLicense.drivingLicenseExpiryDate,
+
+    // FinTech, Banking & Digital Wallets
+    bankName: banking.bankName,
+    bankBranch: banking.bankBranch,
+    bankAccountNumber: banking.bankAccountNumber,
+    bankAccountName: banking.bankAccountName,
+    esewaId: banking.esewaId,
+    khaltiId: banking.khaltiId,
   };
 
   person.devanagari = generateDevanagariDetails(person);

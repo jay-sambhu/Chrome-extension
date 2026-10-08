@@ -1,4 +1,5 @@
 import { DevanagariDetails, SyntheticPerson } from '../types';
+import { COMMERCIAL_BANKS } from './bankingDetails';
 
 /**
  * Maps English numerals 0-9 to Nepali Devanagari numerals ०-९.
@@ -857,5 +858,13 @@ export function generateDevanagariDetails(person: SyntheticPerson): DevanagariDe
       : "वर्ग 'क' (मोटरसाइकल)",
     drivingLicenseIssueDate: person.drivingLicenseIssueDate ? toNepaliNumerals(person.drivingLicenseIssueDate) : undefined,
     drivingLicenseExpiryDate: person.drivingLicenseExpiryDate ? toNepaliNumerals(person.drivingLicenseExpiryDate) : undefined,
+
+    // FinTech, Banking & Digital Wallets in Devanagari
+    bankName: person.bankName ? (COMMERCIAL_BANKS.find((b) => b.nameEn === person.bankName)?.nameNp || 'नबिल बैंक लिमिटेड') : undefined,
+    bankBranch: person.bankBranch ? person.bankBranch.replace('Branch', 'शाखा') : undefined,
+    bankAccountNumber: person.bankAccountNumber ? toNepaliNumerals(person.bankAccountNumber) : undefined,
+    bankAccountName: nepFullName,
+    esewaId: person.esewaId ? toNepaliNumerals(person.esewaId) : undefined,
+    khaltiId: person.khaltiId ? toNepaliNumerals(person.khaltiId) : undefined,
   };
 }

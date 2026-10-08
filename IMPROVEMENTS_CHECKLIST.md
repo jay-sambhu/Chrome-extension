@@ -53,10 +53,10 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Driving license number (`01-06-XXXXXXXX`), category selection (Category A: Motorcycle, Category B: Car/Jeep).
 
 ### 1.5 FinTech, Banking & Digital Wallet Test Data
-- [ ] **Commercial Banks & Branches**:
+- [x] **Commercial Banks & Branches**:
   - Authentic list of Nepal Rastra Bank licensed Commercial Banks (Nabil Bank, NIC Asia, Global IME, Sanima Bank, etc.).
   - Realistic branch names and 14–16 digit synthetic account numbers.
-- [ ] **Digital Wallet IDs**:
+- [x] **Digital Wallet IDs**:
   - eSewa ID / Khalti ID (aligned with generated 98XXXXXXXX mobile number).
 
 ### 1.6 Blood Group Field Support
