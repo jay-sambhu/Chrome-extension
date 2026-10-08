@@ -150,6 +150,48 @@ function matchNumericOption(
 }
 
 /**
+ * Matches a select option against driving license categories (A, B, K, motorcycle, car, etc.).
+ */
+function matchLicenseCategoryOption(
+  options: HTMLOptionElement[],
+  targetValue: string,
+  altValue?: string
+): HTMLOptionElement | undefined {
+  const all = [targetValue, altValue].filter(Boolean) as string[];
+  const isLicenseCat = all.some((s) => /category|वर्ग|motorcycle|car|scooter|license|सवारी/i.test(s));
+  if (!isLicenseCat) return undefined;
+
+  const catLetters: { en: string; np: string; keywords: string[] }[] = [
+    { en: 'A', np: 'क', keywords: ['motorcycle', 'moped', 'bike', 'मोटरसाइकल'] },
+    { en: 'B', np: 'ख', keywords: ['car', 'jeep', 'van', 'कार', 'भ्यान'] },
+    { en: 'K', np: 'ट', keywords: ['scooter', 'स्कुटर'] },
+  ];
+
+  for (const cat of catLetters) {
+    const matchesTarget = all.some((s) =>
+      new RegExp(`(?:\\bcategory\\s*${cat.en}\\b|\\bवर्ग\\s*['"]?${cat.np}['"]?|\\b${cat.keywords.join('|')}\\b)`, 'i').test(s)
+    );
+    if (matchesTarget) {
+      const found = options.find((opt) => {
+        const val = opt.value.trim().toUpperCase();
+        const text = opt.text.trim();
+        return (
+          val === cat.en ||
+          val === cat.np ||
+          text.includes(`Category ${cat.en}`) ||
+          text.includes(`वर्ग ${cat.np}`) ||
+          text.includes(`वर्ग '${cat.np}'`) ||
+          cat.keywords.some((kw) => text.toLowerCase().includes(kw))
+        );
+      });
+      if (found) return found;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Finds the closest matching option for a select element, supporting dual-script alternatives.
  */
 function fillSelectElement(select: HTMLSelectElement, targetValue: string, altValue?: string): boolean {
@@ -179,6 +221,11 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
   // 4. Numeric option matching (years, days, wards across scripts)
   if (!matchedOption) {
     matchedOption = matchNumericOption(options, targetValue, altValue);
+  }
+
+  // 5. License Category option matching
+  if (!matchedOption) {
+    matchedOption = matchLicenseCategoryOption(options, targetValue, altValue);
   }
 
   // 5. Partial match with primary target
@@ -230,7 +277,18 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'guardianName':
     case 'guardianPhone':
     case 'citizenshipNumber':
+    case 'citizenshipIssueDistrict':
+    case 'citizenshipIssueDateBS':
+    case 'citizenshipIssuedBy':
     case 'nationalId':
+    case 'passportNumber':
+    case 'passportIssueDate':
+    case 'passportExpiryDate':
+    case 'passportIssuedBy':
+    case 'drivingLicenseNumber':
+    case 'drivingLicenseCategory':
+    case 'drivingLicenseIssueDate':
+    case 'drivingLicenseExpiryDate':
       return fillCategories.personal;
 
     case 'email':
@@ -424,6 +482,32 @@ export function getFieldValue(
         const bsDate = person.dateOfBirthBS || '2055-01-15';
         return toNepaliNumerals(splitBsDate(bsDate).day);
       }
+      case 'citizenshipNumber':
+        return dev.citizenshipNumber || (person.citizenshipNumber ? toNepaliNumerals(person.citizenshipNumber) : '');
+      case 'citizenshipIssueDistrict':
+        return dev.citizenshipIssueDistrict || dev.permanentDistrict || dev.district;
+      case 'citizenshipIssueDateBS':
+        return dev.citizenshipIssueDateBS || (person.citizenshipIssueDateBS ? toNepaliNumerals(person.citizenshipIssueDateBS) : '');
+      case 'citizenshipIssuedBy':
+        return dev.citizenshipIssuedBy || 'जिल्ला प्रशासन कार्यालय';
+      case 'nationalId':
+        return dev.nationalId || (person.nationalId ? toNepaliNumerals(person.nationalId) : '');
+      case 'passportNumber':
+        return dev.passportNumber || person.passportNumber || '';
+      case 'passportIssueDate':
+        return dev.passportIssueDate || (person.passportIssueDate ? toNepaliNumerals(person.passportIssueDate) : '');
+      case 'passportExpiryDate':
+        return dev.passportExpiryDate || (person.passportExpiryDate ? toNepaliNumerals(person.passportExpiryDate) : '');
+      case 'passportIssuedBy':
+        return dev.passportIssuedBy || 'राहदानी विभाग';
+      case 'drivingLicenseNumber':
+        return dev.drivingLicenseNumber || (person.drivingLicenseNumber ? toNepaliNumerals(person.drivingLicenseNumber) : '');
+      case 'drivingLicenseCategory':
+        return dev.drivingLicenseCategory || person.drivingLicenseCategory || '';
+      case 'drivingLicenseIssueDate':
+        return dev.drivingLicenseIssueDate || (person.drivingLicenseIssueDate ? toNepaliNumerals(person.drivingLicenseIssueDate) : '');
+      case 'drivingLicenseExpiryDate':
+        return dev.drivingLicenseExpiryDate || (person.drivingLicenseExpiryDate ? toNepaliNumerals(person.drivingLicenseExpiryDate) : '');
       case 'textarea':
         return `${dev.fullName}को विवरण। ठेगाना: ${dev.fullAddress}। पेशा: ${dev.occupation}।`;
       case 'text':
@@ -535,8 +619,30 @@ export function getFieldValue(
       return person.panNumber || '102938475';
     case 'citizenshipNumber':
       return person.citizenshipNumber || `27-01-78-${Math.floor(10000 + Math.random() * 90000)}`;
+    case 'citizenshipIssueDistrict':
+      return person.citizenshipIssueDistrict || targetAddress.district;
+    case 'citizenshipIssueDateBS':
+      return person.citizenshipIssueDateBS || '2075-04-12';
+    case 'citizenshipIssuedBy':
+      return person.citizenshipIssuedBy || `District Administration Office, ${targetAddress.district}`;
     case 'nationalId':
       return person.nationalId || `${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    case 'passportNumber':
+      return person.passportNumber || 'PA1234567';
+    case 'passportIssueDate':
+      return person.passportIssueDate || '2020-05-15';
+    case 'passportExpiryDate':
+      return person.passportExpiryDate || '2030-05-14';
+    case 'passportIssuedBy':
+      return person.passportIssuedBy || 'Department of Passports, Kathmandu';
+    case 'drivingLicenseNumber':
+      return person.drivingLicenseNumber || '01-06-00123456';
+    case 'drivingLicenseCategory':
+      return person.drivingLicenseCategory || 'Category B: Car/Jeep/Van';
+    case 'drivingLicenseIssueDate':
+      return person.drivingLicenseIssueDate || '2021-03-10';
+    case 'drivingLicenseExpiryDate':
+      return person.drivingLicenseExpiryDate || '2026-03-09';
     case 'vatNumber':
       return person.vatNumber || (person.panNumber ? `VAT-${person.panNumber}` : 'VAT-102938475');
     case 'cooperative':

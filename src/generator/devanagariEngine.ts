@@ -838,5 +838,24 @@ export function generateDevanagariDetails(person: SyntheticPerson): DevanagariDe
     cropType: nepCropType,
     cooperative: nepCooperative,
     subject: person.subject ? transliterateWord(person.subject) : undefined,
+
+    // Government Documents in Devanagari
+    citizenshipNumber: person.citizenshipNumber ? toNepaliNumerals(person.citizenshipNumber) : undefined,
+    citizenshipIssueDistrict: person.citizenshipIssueDistrict ? (DISTRICTS_DEVANAGARI[person.citizenshipIssueDistrict] || person.citizenshipIssueDistrict) : nepDistrict,
+    citizenshipIssueDateBS: person.citizenshipIssueDateBS ? toNepaliNumerals(person.citizenshipIssueDateBS) : undefined,
+    citizenshipIssuedBy: person.citizenshipIssueDistrict ? `जिल्ला प्रशासन कार्यालय, ${DISTRICTS_DEVANAGARI[person.citizenshipIssueDistrict] || person.citizenshipIssueDistrict}` : undefined,
+    nationalId: person.nationalId ? toNepaliNumerals(person.nationalId) : undefined,
+    passportNumber: person.passportNumber,
+    passportIssueDate: person.passportIssueDate ? toNepaliNumerals(person.passportIssueDate) : undefined,
+    passportExpiryDate: person.passportExpiryDate ? toNepaliNumerals(person.passportExpiryDate) : undefined,
+    passportIssuedBy: person.passportIssuedBy === 'Department of Passports, Kathmandu' ? 'राहदानी विभाग, काठमाडौँ' : (person.citizenshipIssueDistrict ? `जिल्ला प्रशासन कार्यालय, ${DISTRICTS_DEVANAGARI[person.citizenshipIssueDistrict] || person.citizenshipIssueDistrict}` : undefined),
+    drivingLicenseNumber: person.drivingLicenseNumber ? toNepaliNumerals(person.drivingLicenseNumber) : undefined,
+    drivingLicenseCategory: person.drivingLicenseCategory?.includes('A, B')
+      ? "वर्ग 'क', 'ख' (मोटरसाइकल तथा कार)"
+      : person.drivingLicenseCategory?.includes('Category B')
+      ? "वर्ग 'ख' (कार/जीप/भ्यान)"
+      : "वर्ग 'क' (मोटरसाइकल)",
+    drivingLicenseIssueDate: person.drivingLicenseIssueDate ? toNepaliNumerals(person.drivingLicenseIssueDate) : undefined,
+    drivingLicenseExpiryDate: person.drivingLicenseExpiryDate ? toNepaliNumerals(person.drivingLicenseExpiryDate) : undefined,
   };
 }

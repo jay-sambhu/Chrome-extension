@@ -43,13 +43,13 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Support common input formats: `YYYY/MM/DD`, `YYYY-MM-DD`, and Nepali numeric characters (`२०५५/०२/१४`).
 
 ### 1.4 Government & Official Document Identifiers
-- [ ] **Citizenship Issue Details**:
+- [x] **Citizenship Issue Details**:
   - Citizenship issue district (`citizenship_issue_district`) matched to persona province/district.
   - Citizenship issue date in BS (`citizenship_issue_date_bs`) mathematically verified after the birth year.
-- [ ] **National ID (राष्ट्रिय परिचयपत्र) & Passport Details**:
+- [x] **National ID (राष्ट्रिय परिचयपत्र) & Passport Details**:
   - 10-digit National ID format with standard prefix patterns.
   - MRP/E-Passport number (`PA` / `PC` series + 7 digits) and issuing authority (Department of Passports, Kathmandu / DAO).
-- [ ] **Driving License Details**:
+- [x] **Driving License Details**:
   - Driving license number (`01-06-XXXXXXXX`), category selection (Category A: Motorcycle, Category B: Car/Jeep).
 
 ### 1.5 FinTech, Banking & Digital Wallet Test Data

@@ -95,7 +95,62 @@ const PATTERN_RULES: MatchRule[] = [
     baseConfidence: 0.98,
   },
 
-  // 3. Identification (PAN, VAT, National ID, Citizenship)
+  // 3. Identification (PAN, VAT, National ID, Citizenship, Passport, Driving License)
+  {
+    type: 'citizenshipIssueDistrict',
+    regex: /(?:\b(citizenship\s*(issue|issued)?\s*district|nagrikta\s*jari\s*jilla|citizenship\s*district)\b|नागरिकता\s*जारी\s*जिल्ला|नागरिकता\s*लिएको\s*जिल्ला)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'citizenshipIssueDateBS',
+    regex: /(?:\b(citizenship\s*(issue|issued)?\s*date\s*bs|citizenship\s*date\s*bs|nagrikta\s*jari\s*miti\s*bs|citizenship\s*issue\s*date|citizenship\s*issued\s*date|nagrikta\s*jari\s*miti)\b|नागरिकता\s*जारी\s*मिति|नागरिकता\s*लिएको\s*मिति)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'citizenshipIssuedBy',
+    regex: /(?:\b(citizenship\s*(issue|issued)?\s*by|citizenship\s*issuing\s*authority|nagrikta\s*jari\s*garne\s*(karyalaya|nikaya)?|nagrikta\s*karyalaya)\b|नागरिकता\s*जारी\s*गर्ने\s*(कार्यालय|निकाय|अधिकारी)|नागरिकता\s*कार्यालय|जिल्ला\s*प्रशासन\s*कार्यालय)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'citizenshipNumber',
+    regex: /(?:\b(citizenship\s*(no|number|num)?|nagrikta\s*(no|num|number)?)\b|नागरिकता\s*नं|नागरिकता\s*नम्बर)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'nationalId',
+    regex: /(?:\b(national\s*id|nid\s*(no|num|number)?|rastriya\s*parichayapatra)\b|राष्ट्रिय\s*परिचयपत्र\s*नं|राष्ट्रिय\s*परिचयपत्र\s*नम्बर|राष्ट्रिय\s*परिचयपत्र)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'passportIssueDate',
+    regex: /(?:\b(passport\s*(issue|issued)?\s*date|rahadani\s*jari\s*miti)\b|राहदानी\s*जारी\s*मिति|पासपोर्ट\s*जारी\s*मिति)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'passportExpiryDate',
+    regex: /(?:\b(passport\s*(expiry|expiration|validity|valid\s*until|valid\s*upto)?\s*date|passport\s*expiry|rahadani\s*samapta\s*miti|passport\s*valid\s*till)\b|राहदानी\s*बहाल\s*रहने\s*अवधि|राहदानी\s*समाप्त\s*मिति|पासपोर्ट\s*म्याद)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'passportIssuedBy',
+    regex: /(?:\b(passport\s*(issue|issued)?\s*by|passport\s*issuing\s*authority|rahadani\s*jari\s*garne\s*(karyalaya|nikaya)?)\b|राहदानी\s*जारी\s*गर्ने\s*(कार्यालय|निकाय|अधिकारी)|राहदानी\s*विभाग)/i,
+    baseConfidence: 0.97,
+  },
+  {
+    type: 'passportNumber',
+    regex: /(?:\b(passport\s*(no|number|num)?|mrp\s*(no|number)?|rahadani\s*(no|number|num)?)\b|राहदानी\s*नं|राहदानी\s*नम्बर|पासपोर्ट\s*नं|पासपोर्ट\s*नम्बर)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'drivingLicenseCategory',
+    regex: /(?:\b(driving\s*licen[sc]e\s*category|licen[sc]e\s*category|sawari\s*chalak\s*ijajatpatra\s*barga)\b|सवारी\s*चालक\s*अनुमतिपत्र\s*वर्ग|लाइसेन्स\s*वर्ग|अनुमतिपत्र\s*वर्ग)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'drivingLicenseNumber',
+    regex: /(?:\b(driving\s*licen[sc]e\s*(no|number|num)?|licen[sc]e\s*(no|number|num)?|sawari\s*chalak\s*ijajatpatra\s*(no|num|number)?|dotm\s*licen[sc]e)\b|सवारी\s*चालक\s*अनुमतिपत्र\s*नं|सवारी\s*चालक\s*अनुमतिपत्र\s*नम्बर|ड्राइभिङ\s*लाइसेन्स\s*नं|लाइसेन्स\s*नम्बर)/i,
+    baseConfidence: 0.96,
+  },
   {
     type: 'vatNumber',
     regex: /(?:\b(vat\s*(no|number|num)?)\b|मूल्य\s*अभिवृद्धि\s*कर|भ्याट)/i,
@@ -105,16 +160,6 @@ const PATTERN_RULES: MatchRule[] = [
     type: 'panNumber',
     regex: /(?:\b(pan\s*(no|number|num)?|sthayi\s*lekha)\b|स्थायी\s*लेखा|प्यान)/i,
     baseConfidence: 0.95,
-  },
-  {
-    type: 'citizenshipNumber',
-    regex: /(?:\b(citizenship\s*(no|number|num)?|nagrikta\s*(no|num|number)?)\b|नागरिकता\s*नं|नागरिकता\s*नम्बर)/i,
-    baseConfidence: 0.96,
-  },
-  {
-    type: 'nationalId',
-    regex: /(?:\b(national\s*id|nid\s*(no|num|number)?|rastriya\s*parichayapatra)\b|राष्ट्रिय\s*परिचयपत्र\s*नं)/i,
-    baseConfidence: 0.96,
   },
 
   // 4. Telephone / Landline

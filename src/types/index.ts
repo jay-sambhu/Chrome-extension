@@ -52,6 +52,21 @@ export interface DevanagariDetails {
   cropType?: string;
   cooperative?: string;
   subject?: string;
+
+  // Government & Official Document Identifiers in Devanagari
+  citizenshipNumber?: string;
+  citizenshipIssueDistrict?: string;
+  citizenshipIssueDateBS?: string;
+  citizenshipIssuedBy?: string;
+  nationalId?: string;
+  passportNumber?: string;
+  passportIssueDate?: string;
+  passportExpiryDate?: string;
+  passportIssuedBy?: string;
+  drivingLicenseNumber?: string;
+  drivingLicenseCategory?: string;
+  drivingLicenseIssueDate?: string;
+  drivingLicenseExpiryDate?: string;
 }
 
 export interface NepalAddress {
@@ -116,7 +131,18 @@ export interface SyntheticPerson {
   cropType?: string;
   dateOfBirthBS?: string; // e.g. 2058-04-12 (BS)
   citizenshipNumber?: string;
+  citizenshipIssueDistrict?: string;
+  citizenshipIssueDateBS?: string;
+  citizenshipIssuedBy?: string;
   nationalId?: string;
+  passportNumber?: string;
+  passportIssueDate?: string;
+  passportExpiryDate?: string;
+  passportIssuedBy?: string;
+  drivingLicenseNumber?: string;
+  drivingLicenseCategory?: string;
+  drivingLicenseIssueDate?: string;
+  drivingLicenseExpiryDate?: string;
 }
 
 export type SupportedFieldType =
@@ -132,6 +158,19 @@ export type SupportedFieldType =
   | 'bsMonth'
   | 'bsDay'
   | 'age'
+  | 'citizenshipNumber'
+  | 'citizenshipIssueDistrict'
+  | 'citizenshipIssueDateBS'
+  | 'citizenshipIssuedBy'
+  | 'nationalId'
+  | 'passportNumber'
+  | 'passportIssueDate'
+  | 'passportExpiryDate'
+  | 'passportIssuedBy'
+  | 'drivingLicenseNumber'
+  | 'drivingLicenseCategory'
+  | 'drivingLicenseIssueDate'
+  | 'drivingLicenseExpiryDate'
   | 'email'
   | 'phone'
   | 'telephone'

@@ -7,6 +7,12 @@ import {
 import { Gender, NepalAddress, ProfileType, SyntheticPerson } from '../types';
 import { generateDevanagariDetails } from './devanagariEngine';
 import { convertAdToBs } from './nepaliCalendar';
+import {
+  generateCitizenshipDetails,
+  generateNationalId,
+  generatePassportDetails,
+  generateDrivingLicenseDetails,
+} from './governmentDocuments';
 
 function sample<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
@@ -139,8 +145,16 @@ export function generateDateOfBirth(minAge = 20, maxAge = 55): { dob: string; ag
 }
 
 export { convertAdToBs } from './nepaliCalendar';
+export {
+  generateCitizenshipDetails,
+  generatePassportDetails,
+  generateDrivingLicenseDetails,
+} from './governmentDocuments';
 
-export function generateCitizenshipNumber(): string {
+export function generateCitizenshipNumber(districtName?: string, dobBS?: string): string {
+  if (districtName) {
+    return generateCitizenshipDetails(districtName, dobBS).citizenshipNumber;
+  }
   const distCode = randInt(1, 77).toString().padStart(2, '0');
   const typeCode = '01';
   const bsYr = randInt(50, 80).toString().padStart(2, '0');
@@ -148,9 +162,7 @@ export function generateCitizenshipNumber(): string {
   return `${distCode}-${typeCode}-${bsYr}-${serial}`;
 }
 
-export function generateNationalId(): string {
-  return Math.floor(1000000000 + Math.random() * 9000000000).toString();
-}
+export { generateNationalId } from './governmentDocuments';
 
 export function generatePanNumber(): string {
   // 9-digit PAN number format used in Nepal (Inland Revenue Department)
@@ -210,8 +222,6 @@ export function generateSyntheticPerson(
   const password = `Np@Test!${randInt(1000, 9999)}`;
 
   const dobBS = convertAdToBs(dob);
-  const citizenshipNumber = generateCitizenshipNumber();
-  const nationalId = generateNationalId();
 
   // Default professional fields
   let occupation = 'Professional';
@@ -323,6 +333,11 @@ export function generateSyntheticPerson(
     panNumber = generatePanNumber();
   }
 
+  const citizenship = generateCitizenshipDetails(address.district, dobBS);
+  const nationalId = generateNationalId();
+  const passport = generatePassportDetails(address.district, dob);
+  const drivingLicense = generateDrivingLicenseDetails(address.province);
+
   const person: SyntheticPerson = {
     profileType,
     honorific,
@@ -369,8 +384,24 @@ export function generateSyntheticPerson(
 
     cooperative,
     cropType,
-    citizenshipNumber,
+
+    // Verified Government Documents
+    citizenshipNumber: citizenship.citizenshipNumber,
+    citizenshipIssueDistrict: citizenship.citizenshipIssueDistrict,
+    citizenshipIssueDateBS: citizenship.citizenshipIssueDateBS,
+    citizenshipIssuedBy: citizenship.citizenshipIssuedBy,
+
     nationalId,
+
+    passportNumber: passport.passportNumber,
+    passportIssueDate: passport.passportIssueDate,
+    passportExpiryDate: passport.passportExpiryDate,
+    passportIssuedBy: passport.passportIssuedBy,
+
+    drivingLicenseNumber: drivingLicense.drivingLicenseNumber,
+    drivingLicenseCategory: drivingLicense.drivingLicenseCategory,
+    drivingLicenseIssueDate: drivingLicense.drivingLicenseIssueDate,
+    drivingLicenseExpiryDate: drivingLicense.drivingLicenseExpiryDate,
   };
 
   person.devanagari = generateDevanagariDetails(person);
