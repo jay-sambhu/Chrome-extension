@@ -55,6 +55,7 @@ export interface SyntheticPerson {
 
   cooperative?: string;
   cropType?: string;
+  dateOfBirthBS?: string; // e.g. 2058-04-12 (BS)
   citizenshipNumber?: string;
   nationalId?: string;
 }
@@ -66,6 +67,7 @@ export type SupportedFieldType =
   | 'lastName'
   | 'gender'
   | 'dateOfBirth'
+  | 'dateOfBirthBS'
   | 'age'
   | 'email'
   | 'phone'
@@ -84,14 +86,20 @@ export type SupportedFieldType =
   | 'password'
   | 'studentId'
   | 'school'
+  | 'grade'
   | 'guardianName'
   | 'guardianPhone'
   | 'employeeId'
   | 'panNumber'
   | 'vatNumber'
+  | 'salary'
   | 'businessName'
+  | 'businessType'
   | 'designation'
   | 'subject'
+  | 'faculty'
+  | 'cooperative'
+  | 'cropType'
   | 'citizenshipNumber'
   | 'nationalId'
   | 'number'
@@ -174,6 +182,13 @@ export interface PageFieldInspection {
   source: 'domain_override' | 'heuristic' | 'ai_cached' | 'unmapped';
 }
 
+export interface ExtensionSettings {
+  defaultProfile: ProfileType;
+  autoFillOnLoad: boolean;
+  enableAiClassification: boolean;
+  theme: 'dark' | 'light' | 'system';
+}
+
 export type ExtensionMessage =
   | { action: 'SCAN_PAGE' }
   | { action: 'GET_PAGE_FIELDS' }
@@ -181,3 +196,4 @@ export type ExtensionMessage =
   | { action: 'GET_LAST_GENERATED_PERSON' }
   | { action: 'CLASSIFY_FIELD'; payload: FieldClassificationPayload }
   | { action: 'PING' };
+
