@@ -1,0 +1,213 @@
+# Nepal Test Filler — Project Implementation Checklist & Roadmap
+
+This document outlines the detailed checklist for all development phases of the **Nepal Test Filler** Chrome extension, following the specifications defined in [Nepal Test Filler — Project Requirements.md](file:///home/devxgamer/Nepali%20Filler/Nepal%20Test%20Filler%20%E2%80%94%20Project%20Requirements.md).
+
+---
+
+## 📌 Phase Overview Status
+
+| Phase | Description | Status |
+| :--- | :--- | :---: |
+| **Phase 1** | Core Extension Boilerplate (React, Vite, TS, MV3, Basic Detector & Filler) | ✅ **Completed** |
+| **Phase 2** | Nepal Data Engine (Hierarchical Geography, Names, Contacts, Institutions) | ⏳ **Pending** |
+| **Phase 3** | Synthetic Person Generator (Consistency Engine & Persona Profiles) | ⏳ **Pending** |
+| **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ⏳ **Pending** |
+| **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ⏳ **Pending** |
+| **Phase 6** | Website-Specific Mapping (Domain Overrides & Storage Engine) | ⏳ **Pending** |
+| **Phase 7** | Advanced Profiles & Form Controls (Student, Employee, Farmer, Shortcuts) | ⏳ **Pending** |
+
+---
+
+## ✅ Phase 1 — Core Extension (Completed)
+- [x] Git repository initialization and baseline backup commits.
+- [x] Manifest V3 boilerplate with React 19, TypeScript, and Vite 8 (`@crxjs/vite-plugin`).
+- [x] Extension icons generation (16×16, 48×48, 128×128 PNG) with Nepal flag/crimson motif.
+- [x] Basic field detection engine inspecting `name`, `id`, `placeholder`, `<label>`, `aria-label`, and `type`.
+- [x] Framework-compatible form filler (`setNativeValue`, `setNativeChecked`) supporting React, Vue, Angular controlled inputs.
+- [x] Starter Nepal dataset (provinces, key districts, municipalities, names, and phone numbers).
+- [x] Modern Nepal-themed popup UI (crimson `#DC143C` & slate dark mode) with persona preview and 1-click filling.
+- [x] Background service worker initializing default `chrome.storage.local` settings.
+- [x] Comprehensive unit test suite with 13 passing tests via Vitest.
+- [x] Chrome Web Store metadata and permissions justification document ([CHROMEWEBSTORE.md](file:///home/devxgamer/Nepali%20Filler/CHROMEWEBSTORE.md)).
+
+---
+
+## ⏳ Phase 2 — Nepal Data Engine
+
+Expand the core datasets from basic starter lists into exhaustive, verified Nepali datasets stored in structured JSON formats.
+
+### 2.1 Geography Hierarchy (`src/data/geography/`)
+- [ ] **Provinces Dataset** (`provinces.json`):
+  - [ ] All 7 provinces: Koshi, Madhesh, Bagmati, Gandaki, Lumbini, Karnali, Sudurpashchim.
+  - [ ] Both English names and official Nepali Devanagari names.
+- [ ] **Districts Dataset** (`districts.json`):
+  - [ ] All 77 districts mapped strictly to their respective province.
+  - [ ] Headquarters and regional classification (Himalayan, Hilly, Terai).
+- [ ] **Municipalities & Local Bodies** (`municipalities.json`):
+  - [ ] All 6 Metropolitan Cities (Kathmandu, Lalitpur, Bharatpur, Pokhara, Biratnagar, Birgunj).
+  - [ ] All 11 Sub-Metropolitan Cities (Janakpur, Ghorahi, Tulsipur, Itahari, Dharan, Butwal, Hetauda, Dhangadhi, Nepalgunj, Kalaiya, Jitpursimara).
+  - [ ] 276 Municipalities and 460 Rural Municipalities (Gaunpalika).
+  - [ ] Accurate ward count limits per local body (e.g., KMC: 32 wards, Pokhara: 33 wards).
+- [ ] **Toles and Landmarks** (`toleAddresses.json`):
+  - [ ] Popular toles, chowks, and road names categorized by major urban centers (Kathmandu Valley, Pokhara, Biratnagar, Butwal, Chitwan, Nepalgunj, Dhangadhi).
+
+### 2.2 Names & Demographics (`src/data/names/`)
+- [ ] **First Names** (`maleNames.json`, `femaleNames.json`):
+  - [ ] Expanded to 200+ authentic Nepali male first names.
+  - [ ] Expanded to 200+ authentic Nepali female first names.
+- [ ] **Surnames** (`surnames.json`):
+  - [ ] Comprehensive representation across Nepali ethnicities:
+    - Khas-Arya (Adhikari, Sharma, Dahal, Karki, Bhattarai, etc.)
+    - Newar (Shrestha, Maharjan, Shakya, Bajracharya, Dangol, etc.)
+    - Janajati / Kirat / Gurung / Magar / Tamang (Gurung, Magar, Rai, Limbu, Tamang, Thapa, etc.)
+    - Madhesi & Tharu (Chaudhary, Yadav, Shah, Mahato, Jha, Mandal, etc.)
+
+### 2.3 Contact & Organization Information
+- [ ] **Phone Number Generator**:
+  - [ ] NTC mobile series (`984`, `985`, `986`, `974`, `975`, `976`).
+  - [ ] Ncell mobile series (`980`, `981`, `982`, `970`).
+  - [ ] Landline numbers with official district area codes (`01` Kathmandu, `021` Biratnagar, `025` Dharan, `061` Pokhara, `071` Butwal, `081` Nepalgunj, `091` Dhangadhi).
+- [ ] **Email Generator**:
+  - [ ] Reserved synthetic domains (`example.test`, `testmail.com.np`, `synthetic.np`).
+  - [ ] Natural email naming patterns (`first.last`, `firstlastNN`, `flastNN`).
+- [ ] **Occupations & Companies** (`occupations.json`, `companies.json`):
+  - [ ] Nepali company names (e.g., Sagarmatha Tech, Danphe Solutions, Himalayan Logistics).
+  - [ ] Common corporate, government, academic, and trade occupations with departments.
+- [ ] **Educational Institutions** (`institutions.json`):
+  - [ ] Major universities (Tribhuvan University, Kathmandu University, Pokhara University, etc.).
+  - [ ] Prominent colleges and high schools across Nepal.
+
+---
+
+## ⏳ Phase 3 — Synthetic Person Generator
+
+Elevate data generation from independent randomized fields to complete, logically unified, and internally consistent personas.
+
+- [ ] **Geographic Consistency Engine**:
+  - [ ] Strict hierarchical resolution: `Province` ➔ `District` ➔ `Municipality` ➔ `Ward`.
+  - [ ] Automatic avoidance of invalid combinations (e.g., Koshi Province + Kathmandu District).
+  - [ ] Coherent formatted address strings matching standard Nepali postal format.
+- [ ] **Demographic & Persona Consistency**:
+  - [ ] Gender-aligned first names and honorifics (Mr., Ms., Mrs.).
+  - [ ] Age calculation mathematically coupled with `Date of Birth` (`age === currentYear - birthYear`).
+  - [ ] Landline area codes coupled to the generated address's district (e.g., `01` for Kathmandu/Lalitpur/Bhaktapur, `061` for Kaski).
+- [ ] **Persona Archetypes**:
+  - [ ] Default General Person.
+  - [ ] Age-bracket filtering (working professional: 22–60, student: 16–25, senior: 60+).
+- [ ] **Testing**:
+  - [ ] Unit tests running 1,000 randomized iterations asserting zero geographic mismatch bugs.
+
+---
+
+## ⏳ Phase 4 — Advanced Field Detection
+
+Significantly improve the rule-based detection engine to achieve near-100% accuracy on real-world Nepali and international web forms.
+
+- [ ] **Multi-Signal Scoring System**:
+  - [ ] Weighted scoring across:
+    1. Input `type` and `autocomplete` attributes.
+    2. Explicit `<label for="...">` and wrapping `<label>`.
+    3. Input `name` and `id` tokens.
+    4. Input `placeholder` text.
+    5. Accessibility attributes (`aria-label`, `aria-labelledby`, `aria-describedby`).
+    6. Neighboring DOM sibling text and parent container headers.
+- [ ] **Romanized Nepali Vocabulary Support**:
+  - [ ] Names: `naam`, `pehelo naam`, `bichko naam`, `thar`.
+  - [ ] Address: `thegana`, `jilla`, `pradesh`, `nagar palika`, `gau palika`, `wada`, `tole`, `chowk`.
+  - [ ] Identity: `nagrikta`, `rastriya parichayapatra`, `pan`, `janma darta`.
+  - [ ] Contact: `phone`, `samparka`, `chalbhasa`, `patralaya`.
+  - [ ] Professional: `pesha`, `karyalaya`, `sanstha`, `pad`.
+- [ ] **Composite Form Layout Detection**:
+  - [ ] Detection of split address fields (separate Province dropdown, District dropdown, Municipality dropdown, Ward input).
+  - [ ] Detection of split name inputs (First Name + Last Name vs. Single Full Name).
+  - [ ] Support for non-standard form layouts (tables, floating label frameworks, Material UI, Tailwind forms).
+
+---
+
+## ⏳ Phase 5 — Gemini Integration (Isolated & Local-First)
+
+Incorporate Google Gemini strictly as an optional intelligence layer without compromising local speed or privacy.
+
+- [ ] **Architectural Boundaries (Strict Requirements Compliance)**:
+  - [ ] Form filling operates 100% offline without Gemini.
+  - [ ] Zero Gemini calls for fields identified by the local rule engine.
+  - [ ] No API keys hardcoded into extension distribution files.
+  - [ ] Secure user-provided API key stored in `chrome.storage.local` (or backend proxy option).
+- [ ] **Unknown Field Classifier**:
+  - [ ] Triggered only when a field fails local detection and user has opted into AI classification.
+  - [ ] Privacy sanitization: payload contains **only** `{ name, id, placeholder, label, type }` — never webpage content or user data.
+  - [ ] Structured Output: prompts Gemini to classify into the strict `SupportedFieldType` enum with confidence score.
+- [ ] **Classification Caching Engine**:
+  - [ ] Hash key generator: `hash(domain + name + id + placeholder + label)`.
+  - [ ] Persist classification results in `chrome.storage.local` so Gemini is never queried twice for the same field pattern.
+- [ ] **Administrative Dataset Expansion Script**:
+  - [ ] Node.js development script using `@google/genai` to expand names, occupations, toles, and institutions for new releases.
+  - [ ] Automated validation step to ensure newly generated synthetic entries meet schema constraints before merging into JSON datasets.
+
+---
+
+## ⏳ Phase 6 — Website-Specific Mapping
+
+Empower power-users and QA engineers to configure domain-specific field overrides.
+
+- [ ] **Custom Field Mapper UI**:
+  - [ ] In-popup / side-panel field inspector showing detected vs. unknown fields on the active page.
+  - [ ] Dropdown to manually map an unclassified field to any synthetic generator type.
+- [ ] **Domain Mapping Storage Engine**:
+  - [ ] Save mapping rules per hostname (e.g., `esewa.com.np`, `khalti.com`, `internal-portal.local`).
+  - [ ] Mapping precedence hierarchy:
+    ```text
+    Custom Domain Mapping (Highest Priority)
+             ↓
+    Rule-Based Local Detector
+             ↓
+    Cached AI Classification
+             ↓
+    Optional Live AI Classification
+             ↓
+    Generic Fallback / Skip
+    ```
+- [ ] **Mapping Management Settings**:
+  - [ ] View all saved domain mappings.
+  - [ ] Edit / delete mappings.
+  - [ ] Export / Import mappings as JSON for team sharing across QA departments.
+
+---
+
+## ⏳ Phase 7 — Advanced Controls & Specialized Profiles
+
+Expand form-filling flexibility with domain-specific archetypes and browser productivity enhancements.
+
+- [ ] **Specialized Test Profiles**:
+  - [ ] **Student**:
+    - Student ID / Roll Number generator.
+    - Associated School/College/University.
+    - Guardian Name & Guardian Phone number.
+  - [ ] **Employee**:
+    - Employee ID (`EMP-XXXX`).
+    - Department, Designation, and Corporate Email (`name@company.com.np`).
+    - PAN number format (`XXXXXXXXX`).
+  - [ ] **Business Owner**:
+    - Business Name, Registration Type (Pvt Ltd, Proprietorship).
+    - Synthetic VAT/PAN number.
+    - Registered Office Address.
+  - [ ] **Farmer / Agriculture**:
+    - Agricultural occupation and cooperative name.
+    - Rural municipality and rural ward focus.
+- [ ] **Keyboard Shortcuts**:
+  - [ ] `Alt+Shift+F`: Instantly fills active tab without opening the popup.
+  - [ ] `Alt+Shift+R`: Re-generates synthetic profile and re-fills.
+- [ ] **Custom Form Controls Support**:
+  - [ ] React-Select, Material-UI Autocomplete, Ant Design Dropdowns.
+  - [ ] Custom checkbox/radio groups built with styled `div` / `span` tags.
+  - [ ] Date picker components (Nepali Bikram Sambat / BS converter preview).
+- [ ] **Extension Options & Settings Page**:
+  - [ ] Full options page for configuring default profiles, enabling/disabling Gemini, managing custom mappings, and backing up data.
+
+---
+
+## 🚀 Pre-Release & Chrome Web Store Checklist
+- [ ] Manifest security review: ensure minimal permissions (`storage`, `activeTab`, `scripting`).
+- [ ] Complete unit and integration test suite passing cleanly with 100% green status.
+- [ ] Production build verification with clean bundle size analysis.
+- [ ] Review against [CHROMEWEBSTORE.md](file:///home/devxgamer/Nepali%20Filler/CHROMEWEBSTORE.md) and prepare screenshots (1280×800).
