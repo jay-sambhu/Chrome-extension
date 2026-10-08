@@ -346,7 +346,11 @@ const AUTOCOMPLETE_MAP: Record<string, SupportedFieldType> = {
  */
 export function detectFieldType(element: HTMLElement): DetectedField {
   const tagName = element.tagName.toLowerCase();
-  const inputType = (element.getAttribute('type') || (tagName === 'textarea' ? 'textarea' : 'text')).toLowerCase();
+  const role = element.getAttribute('role') || '';
+  const inputType = (
+    element.getAttribute('type') ||
+    (role === 'checkbox' ? 'checkbox' : role === 'radio' ? 'radio' : role === 'combobox' ? 'combobox' : tagName === 'textarea' ? 'textarea' : 'text')
+  ).toLowerCase();
   const autocomplete = (element.getAttribute('autocomplete') || '').toLowerCase().trim();
   const label = getFieldLabel(element);
   const name = element.getAttribute('name') || undefined;
@@ -453,6 +457,12 @@ export function detectFieldType(element: HTMLElement): DetectedField {
   if (tagName === 'textarea') {
     return { element, type: 'textarea', confidence: 0.6, label, name, id };
   }
+  if (inputType === 'checkbox') {
+    return { element, type: 'text', confidence: 0.6, label, name, id };
+  }
+  if (inputType === 'radio') {
+    return { element, type: 'gender', confidence: 0.6, label, name, id };
+  }
   if (inputType === 'text') {
     return { element, type: 'text', confidence: 0.4, label, name, id };
   }
@@ -464,7 +474,13 @@ export function detectFieldType(element: HTMLElement): DetectedField {
  * Scans the DOM tree for all active, interactive form fields.
  */
 export function scanFormFields(root: Document | HTMLElement = document): DetectedField[] {
-  const selector = 'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([disabled]), textarea:not([disabled]), select:not([disabled])';
+  const selector =
+    'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([disabled]), ' +
+    'textarea:not([disabled]), ' +
+    'select:not([disabled]), ' +
+    '[role="checkbox"]:not([aria-disabled="true"]):not(input), ' +
+    '[role="radio"]:not([aria-disabled="true"]):not(input), ' +
+    '[role="combobox"]:not([aria-disabled="true"]):not(input):not(select)';
   const elements = Array.from(root.querySelectorAll<HTMLElement>(selector));
 
   return elements.map(detectFieldType);
