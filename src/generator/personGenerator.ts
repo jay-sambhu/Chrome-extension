@@ -14,13 +14,16 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-export function generateNepalAddress(targetProvince?: string): NepalAddress {
+export function generateNepalAddress(targetProvince?: string, preferRural = false): NepalAddress {
   const province: Province = targetProvince
     ? NepalDataEngine.getProvinces().find((p) => p.name === targetProvince) || NepalDataEngine.getRandomProvince()
     : NepalDataEngine.getRandomProvince();
 
   const district: District = NepalDataEngine.getRandomDistrict(province.name);
-  const municipality: Municipality = NepalDataEngine.getRandomMunicipality(district.name);
+  const municipality: Municipality = NepalDataEngine.getRandomMunicipality(
+    district.name,
+    preferRural ? 'Rural Municipality' : undefined
+  );
   const ward = NepalDataEngine.getRandomWard(municipality);
   const tole = NepalDataEngine.getRandomTole();
 
@@ -71,6 +74,40 @@ export function generateDateOfBirth(minAge = 20, maxAge = 55): { dob: string; ag
   };
 }
 
+/**
+ * Converts AD YYYY-MM-DD date to approximate Nepali Bikram Sambat (BS) YYYY-MM-DD.
+ * Nepal BS calendar is approximately +56.7 years ahead (Baishakh 1 aligns with mid-April).
+ */
+export function convertAdToBs(adDateStr: string): string {
+  const parts = adDateStr.split('-');
+  if (parts.length !== 3) return '';
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+
+  const isAfterNewYear = month > 4 || (month === 4 && day >= 14);
+  const bsYear = isAfterNewYear ? year + 57 : year + 56;
+  const bsMonth = ((month - 4 + 12) % 12) + 1;
+  const bsDay = Math.min(day, 30);
+
+  const bsMonthStr = bsMonth.toString().padStart(2, '0');
+  const bsDayStr = bsDay.toString().padStart(2, '0');
+  return `${bsYear}-${bsMonthStr}-${bsDayStr}`;
+}
+
+export function generateCitizenshipNumber(): string {
+  const distCode = randInt(1, 77).toString().padStart(2, '0');
+  const typeCode = '01';
+  const bsYr = randInt(50, 80).toString().padStart(2, '0');
+  const serial = randInt(10000, 99999);
+  return `${distCode}-${typeCode}-${bsYr}-${serial}`;
+}
+
+export function generateNationalId(): string {
+  return Math.floor(1000000000 + Math.random() * 9000000000).toString();
+}
+
 export function generatePanNumber(): string {
   // 9-digit PAN number format used in Nepal (Inland Revenue Department)
   return Math.floor(100000000 + Math.random() * 900000000).toString();
@@ -116,7 +153,7 @@ export function generateSyntheticPerson(
   const honorific = gender === 'Male' ? 'Mr.' : age > 28 ? 'Mrs.' : 'Ms.';
 
   // Address and district-coupled landline
-  const address = generateNepalAddress();
+  const address = generateNepalAddress(undefined, profileType === 'farmer');
   const phone = generateNepaliPhone();
   const telephone = generateNepaliTelephone(address.district);
 
@@ -126,6 +163,10 @@ export function generateSyntheticPerson(
 
   const username = `${firstName.toLowerCase()}_${lastName.toLowerCase()}${randInt(10, 999)}`;
   const password = `Np@Test!${randInt(1000, 9999)}`;
+
+  const dobBS = convertAdToBs(dob);
+  const citizenshipNumber = generateCitizenshipNumber();
+  const nationalId = generateNationalId();
 
   // Default professional fields
   let occupation = 'Professional';
@@ -160,7 +201,7 @@ export function generateSyntheticPerson(
   if (profileType === 'student') {
     occupation = 'Student';
     jobTitle = 'Student';
-    department = 'Academic';
+    department = 'Academic Affairs';
     const inst = age >= 19
       ? NepalDataEngine.getRandomInstitution('University')
       : age >= 17
@@ -171,6 +212,14 @@ export function generateSyntheticPerson(
     school = inst.name;
     studentId = `STU-${new Date().getFullYear()}-${randInt(1000, 9999)}`;
     grade = age >= 21 ? 'Masters Degree' : age >= 18 ? 'Bachelors Degree' : 'Grade 12';
+    const studentFaculties = [
+      'Faculty of Science & Technology',
+      'Faculty of Management',
+      'Faculty of Humanities & Social Sciences',
+      'Institute of Engineering',
+      'Institute of Medicine',
+    ];
+    faculty = sample(studentFaculties);
     const guardianFirstName = NepalDataEngine.getRandomMaleName();
     guardianName = `${guardianFirstName} ${lastName}`;
     guardianPhone = generateNepaliPhone();
@@ -200,8 +249,8 @@ export function generateSyntheticPerson(
     const subjects = ['Mathematics', 'Physics', 'English Literature', 'Nepali', 'Social Studies', 'Computer Science', 'Economics', 'Chemistry'];
     subject = sample(subjects);
     faculty = subject.includes('Physics') || subject.includes('Mathematics') || subject.includes('Computer')
-      ? 'Science & Technology'
-      : 'Humanities & Social Sciences';
+      ? 'Faculty of Science & Technology'
+      : 'Faculty of Humanities & Social Sciences';
     occupation = age > 35 ? 'Senior Lecturer' : 'Teacher';
     jobTitle = occupation;
     department = `Department of ${subject}`;
@@ -216,7 +265,8 @@ export function generateSyntheticPerson(
     department = 'Agricultural Operations';
     const crops = ['Paddy (Dhan)', 'Maize (Makai)', 'Organic Tea', 'Large Cardamom (Alainchi)', 'Himalayan Coffee', 'Dairy Farming', 'Vegetable Farming'];
     cropType = sample(crops);
-    cooperative = `${address.municipality.split(' ')[0]} Small Farmers Agriculture Cooperative Ltd.`;
+    const cleanMuni = address.municipality.replace(/ (Rural )?Municipality.*/, '');
+    cooperative = `${cleanMuni} Sana Kisan Agriculture Cooperative Ltd.`;
     companyName = cooperative;
   } else {
     // General person
@@ -236,6 +286,7 @@ export function generateSyntheticPerson(
     fullName,
     gender,
     dateOfBirth: dob,
+    dateOfBirthBS: dobBS,
     age,
     phone,
     telephone,
@@ -270,5 +321,7 @@ export function generateSyntheticPerson(
 
     cooperative,
     cropType,
+    citizenshipNumber,
+    nationalId,
   };
 }

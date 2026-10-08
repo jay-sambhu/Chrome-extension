@@ -107,15 +107,21 @@ export class NepalDataEngine {
     return sample(this.districts);
   }
 
-  public static getRandomMunicipality(districtName: string): Municipality {
+  public static getRandomMunicipality(districtName: string, preferredType?: string): Municipality {
     const list = this.getMunicipalitiesByDistrict(districtName);
-    if (list.length > 0) return sample(list);
+    if (list.length > 0) {
+      if (preferredType) {
+        const matches = list.filter((m) => m.type.toLowerCase() === preferredType.toLowerCase());
+        if (matches.length > 0) return sample(matches);
+      }
+      return sample(list);
+    }
     // Fallback if rural district not individually listed
     return {
       district: districtName,
-      name: `${districtName} Municipality`,
-      type: 'Municipality',
-      maxWards: 12,
+      name: `${districtName} ${preferredType || 'Municipality'}`,
+      type: (preferredType as any) || 'Municipality',
+      maxWards: 9,
     };
   }
 
