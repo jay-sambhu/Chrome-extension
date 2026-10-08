@@ -1,0 +1,138 @@
+[
+  { "district": "Kathmandu", "name": "Kathmandu Metropolitan City", "type": "Metropolitan City", "maxWards": 32 },
+  { "district": "Kathmandu", "name": "Kirtipur Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Kathmandu", "name": "Budhanilkantha Municipality", "type": "Municipality", "maxWards": 13 },
+  { "district": "Kathmandu", "name": "Chandragiri Municipality", "type": "Municipality", "maxWards": 15 },
+  { "district": "Kathmandu", "name": "Tokha Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Kathmandu", "name": "Nagarjun Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Kathmandu", "name": "Tarakeshwar Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Kathmandu", "name": "Gokarneshwar Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Kathmandu", "name": "Shankharapur Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Kathmandu", "name": "Kageshwari Manohara Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Kathmandu", "name": "Dakshinkali Municipality", "type": "Municipality", "maxWards": 9 },
+
+  { "district": "Lalitpur", "name": "Lalitpur Metropolitan City", "type": "Metropolitan City", "maxWards": 29 },
+  { "district": "Lalitpur", "name": "Mahalaxmi Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Lalitpur", "name": "Godawari Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Lalitpur", "name": "Konjyoson Rural Municipality", "type": "Rural Municipality", "maxWards": 5 },
+  { "district": "Lalitpur", "name": "Bagmati Rural Municipality", "type": "Rural Municipality", "maxWards": 7 },
+  { "district": "Lalitpur", "name": "Mahankal Rural Municipality", "type": "Rural Municipality", "maxWards": 6 },
+
+  { "district": "Bhaktapur", "name": "Bhaktapur Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Bhaktapur", "name": "Madhyapur Thimi Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Bhaktapur", "name": "Suryabinayak Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Bhaktapur", "name": "Changunarayan Municipality", "type": "Municipality", "maxWards": 9 },
+
+  { "district": "Chitwan", "name": "Bharatpur Metropolitan City", "type": "Metropolitan City", "maxWards": 29 },
+  { "district": "Chitwan", "name": "Ratnanagar Municipality", "type": "Municipality", "maxWards": 16 },
+  { "district": "Chitwan", "name": "Khairahani Municipality", "type": "Municipality", "maxWards": 13 },
+  { "district": "Chitwan", "name": "Madi Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Chitwan", "name": "Rapti Municipality", "type": "Municipality", "maxWards": 13 },
+  { "district": "Chitwan", "name": "Kalika Municipality", "type": "Municipality", "maxWards": 11 },
+
+  { "district": "Morang", "name": "Biratnagar Metropolitan City", "type": "Metropolitan City", "maxWards": 19 },
+  { "district": "Morang", "name": "Belbari Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Morang", "name": "Sundarharaicha Municipality", "type": "Municipality", "maxWards": 12 },
+  { "district": "Morang", "name": "Pathari Shanischare Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Morang", "name": "Urlabari Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Morang", "name": "Ratuwamai Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Morang", "name": "Sunawarshi Municipality", "type": "Municipality", "maxWards": 9 },
+
+  { "district": "Sunsari", "name": "Dharan Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 20 },
+  { "district": "Sunsari", "name": "Itahari Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 20 },
+  { "district": "Sunsari", "name": "Inaruwa Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Sunsari", "name": "Duhabi Municipality", "type": "Municipality", "maxWards": 12 },
+  { "district": "Sunsari", "name": "Ramdhuni Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Sunsari", "name": "Barahakshetra Municipality", "type": "Municipality", "maxWards": 11 },
+
+  { "district": "Jhapa", "name": "Birtamod Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Jhapa", "name": "Damak Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Jhapa", "name": "Mechinagar Municipality", "type": "Municipality", "maxWards": 15 },
+  { "district": "Jhapa", "name": "Bhadrapur Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Jhapa", "name": "Arjundhara Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Jhapa", "name": "Shivasatakshi Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Jhapa", "name": "Gauradaha Municipality", "type": "Municipality", "maxWards": 9 },
+
+  { "district": "Kaski", "name": "Pokhara Metropolitan City", "type": "Metropolitan City", "maxWards": 33 },
+  { "district": "Kaski", "name": "Annapurna Rural Municipality", "type": "Rural Municipality", "maxWards": 11 },
+  { "district": "Kaski", "name": "Machhapuchhre Rural Municipality", "type": "Rural Municipality", "maxWards": 9 },
+  { "district": "Kaski", "name": "Madi Rural Municipality", "type": "Rural Municipality", "maxWards": 12 },
+  { "district": "Kaski", "name": "Rupa Rural Municipality", "type": "Rural Municipality", "maxWards": 7 },
+
+  { "district": "Rupandehi", "name": "Butwal Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 19 },
+  { "district": "Rupandehi", "name": "Siddharthanagar Municipality", "type": "Municipality", "maxWards": 13 },
+  { "district": "Rupandehi", "name": "Tilottama Municipality", "type": "Municipality", "maxWards": 17 },
+  { "district": "Rupandehi", "name": "Sainamaina Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Rupandehi", "name": "Devdaha Municipality", "type": "Municipality", "maxWards": 12 },
+  { "district": "Rupandehi", "name": "Lumbini Sanskritik Municipality", "type": "Municipality", "maxWards": 13 },
+
+  { "district": "Parsa", "name": "Birgunj Metropolitan City", "type": "Metropolitan City", "maxWards": 32 },
+  { "district": "Parsa", "name": "Pokhariya Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Parsa", "name": "Bahudaramai Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Parsa", "name": "Parsagadhi Municipality", "type": "Municipality", "maxWards": 9 },
+
+  { "district": "Bara", "name": "Kalaiya Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 27 },
+  { "district": "Bara", "name": "Jitpursimara Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 24 },
+  { "district": "Bara", "name": "Kolhabi Municipality", "type": "Municipality", "maxWards": 11 },
+
+  { "district": "Dhanusha", "name": "Janakpurdham Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 25 },
+  { "district": "Dhanusha", "name": "Mithila Municipality", "type": "Municipality", "maxWards": 11 },
+  { "district": "Dhanusha", "name": "Dhanusadham Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Dhanusha", "name": "Sabaila Municipality", "type": "Municipality", "maxWards": 13 },
+
+  { "district": "Dang", "name": "Ghorahi Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 19 },
+  { "district": "Dang", "name": "Tulsipur Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 19 },
+  { "district": "Dang", "name": "Lamahi Municipality", "type": "Municipality", "maxWards": 9 },
+
+  { "district": "Banke", "name": "Nepalgunj Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 23 },
+  { "district": "Banke", "name": "Kohalpur Municipality", "type": "Municipality", "maxWards": 15 },
+  { "district": "Banke", "name": "Rapti Sonari Rural Municipality", "type": "Rural Municipality", "maxWards": 9 },
+
+  { "district": "Makwanpur", "name": "Hetauda Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 19 },
+  { "district": "Makwanpur", "name": "Thaha Municipality", "type": "Municipality", "maxWards": 12 },
+
+  { "district": "Kailali", "name": "Dhangadhi Sub-Metropolitan City", "type": "Sub-Metropolitan City", "maxWards": 19 },
+  { "district": "Kailali", "name": "Tikapur Municipality", "type": "Municipality", "maxWards": 9 },
+  { "district": "Kailali", "name": "Lamki Chuha Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Kailali", "name": "Godawari Municipality", "type": "Municipality", "maxWards": 12 },
+
+  { "district": "Kanchanpur", "name": "Bhimdatta Municipality", "type": "Municipality", "maxWards": 19 },
+  { "district": "Kanchanpur", "name": "Bedkot Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Kanchanpur", "name": "Punarbas Municipality", "type": "Municipality", "maxWards": 11 },
+
+  { "district": "Surkhet", "name": "Birendranagar Municipality", "type": "Municipality", "maxWards": 16 },
+  { "district": "Surkhet", "name": "Bheriganga Municipality", "type": "Municipality", "maxWards": 13 },
+  { "district": "Surkhet", "name": "Gurbhakot Municipality", "type": "Municipality", "maxWards": 14 },
+
+  { "district": "Tanahun", "name": "Byas Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Tanahun", "name": "Shuklagandaki Municipality", "type": "Municipality", "maxWards": 12 },
+  { "district": "Tanahun", "name": "Bhanu Municipality", "type": "Municipality", "maxWards": 13 },
+
+  { "district": "Gorkha", "name": "Gorkha Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Gorkha", "name": "Palungtar Municipality", "type": "Municipality", "maxWards": 10 },
+
+  { "district": "Palpa", "name": "Tansen Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Palpa", "name": "Rampur Municipality", "type": "Municipality", "maxWards": 10 },
+
+  { "district": "Ilam", "name": "Ilam Municipality", "type": "Municipality", "maxWards": 12 },
+  { "district": "Ilam", "name": "Suryodaya Municipality", "type": "Municipality", "maxWards": 14 },
+
+  { "district": "Dhankuta", "name": "Dhankuta Municipality", "type": "Municipality", "maxWards": 10 },
+  { "district": "Dhankuta", "name": "Pakhribas Municipality", "type": "Municipality", "maxWards": 10 },
+
+  { "district": "Udayapur", "name": "Triyuga Municipality", "type": "Municipality", "maxWards": 16 },
+  { "district": "Udayapur", "name": "Katari Municipality", "type": "Municipality", "maxWards": 14 },
+
+  { "district": "Kavrepalanchok", "name": "Dhulikhel Municipality", "type": "Municipality", "maxWards": 12 },
+  { "district": "Kavrepalanchok", "name": "Banepa Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Kavrepalanchok", "name": "Panauti Municipality", "type": "Municipality", "maxWards": 12 },
+
+  { "district": "Sindhuli", "name": "Kamalamai Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Sindhuli", "name": "Dudhauli Municipality", "type": "Municipality", "maxWards": 14 },
+
+  { "district": "Baglung", "name": "Baglung Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Baglung", "name": "Galkot Municipality", "type": "Municipality", "maxWards": 11 },
+
+  { "district": "Syangja", "name": "Putalibazar Municipality", "type": "Municipality", "maxWards": 14 },
+  { "district": "Syangja", "name": "Waling Municipality", "type": "Municipality", "maxWards": 14 }
+]

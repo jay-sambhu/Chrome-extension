@@ -1,0 +1,18 @@
+[
+  { "name": "Tribhuvan University", "type": "University", "location": "Kirtipur, Kathmandu" },
+  { "name": "Kathmandu University", "type": "University", "location": "Dhulikhel, Kavre" },
+  { "name": "Pokhara University", "type": "University", "location": "Lekhnath, Kaski" },
+  { "name": "Purbanchal University", "type": "University", "location": "Biratnagar, Morang" },
+  { "name": "Mid-Western University", "type": "University", "location": "Birendranagar, Surkhet" },
+  { "name": "Far-Western University", "type": "University", "location": "Mahendranagar, Kanchanpur" },
+  { "name": "Pulchowk Campus (IOE)", "type": "College", "location": "Pulchowk, Lalitpur" },
+  { "name": "Thapathali Campus (IOE)", "type": "College", "location": "Thapathali, Kathmandu" },
+  { "name": "St. Xavier's College", "type": "College", "location": "Maitighar, Kathmandu" },
+  { "name": "Amrit Science Campus (ASCOL)", "type": "College", "location": "Lainchaur, Kathmandu" },
+  { "name": "Patan Multiple Campus", "type": "College", "location": "Patandhoka, Lalitpur" },
+  { "name": "Prithvi Narayan Campus", "type": "College", "location": "Bagar, Pokhara" },
+  { "name": "Mahendra Morang Adarsh Multiple Campus", "type": "College", "location": "Biratnagar, Morang" },
+  { "name": "Budhanilkantha School", "type": "School", "location": "Budhanilkantha, Kathmandu" },
+  { "name": "St. Mary's High School", "type": "School", "location": "Jawalakhel, Lalitpur" },
+  { "name": "Gandaki Boarding School", "type": "School", "location": "Lamachaur, Pokhara" }
+]

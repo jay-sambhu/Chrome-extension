@@ -1,0 +1,32 @@
+[
+  { "name": "Danphe Digital Solutions Pvt. Ltd.", "type": "Tech" },
+  { "name": "Himalayan Cloud Technologies", "type": "Tech" },
+  { "name": "Yeti Software Labs Nepal", "type": "Tech" },
+  { "name": "Sagarmatha InfoSys Pvt. Ltd.", "type": "Tech" },
+  { "name": "Kathmandu Code Works", "type": "Tech" },
+  { "name": "Machhapuchhre Innovations Pvt. Ltd.", "type": "Tech" },
+
+  { "name": "Gorkha Construction & Engineering", "type": "Engineering" },
+  { "name": "Annapurna Infrastructure Developers", "type": "Engineering" },
+  { "name": "Bagmati Builders & Architects", "type": "Engineering" },
+
+  { "name": "Lumbini Merchant Capital Ltd.", "type": "Finance" },
+  { "name": "Karnali Financial Services Pvt. Ltd.", "type": "Finance" },
+  { "name": "Shikhar Commercial Advisors", "type": "Finance" },
+
+  { "name": "Everest Horizons Group", "type": "Corporate" },
+  { "name": "Namaste Logistics & Trading", "type": "Corporate" },
+  { "name": "Nepal Multi-Trade Enterprises", "type": "Corporate" },
+
+  { "name": "Chitwan Health Sciences Center", "type": "Healthcare" },
+  { "name": "Himalayan Care Poly Clinic", "type": "Healthcare" },
+
+  { "name": "Muktinath Organic Agro Farms", "type": "Agriculture" },
+  { "name": "Koshi Dairy & Agri Products", "type": "Agriculture" },
+
+  { "name": "Dhaulagiri Heritage Resort & Spa", "type": "Hospitality" },
+  { "name": "Pokhara View Grand Hotel", "type": "Hospitality" },
+
+  { "name": "Himal Media Network Pvt. Ltd.", "type": "Media" },
+  { "name": "Kantipur Creative Studio", "type": "Creative" }
+]

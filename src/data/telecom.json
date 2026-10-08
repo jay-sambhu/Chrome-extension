@@ -1,0 +1,13 @@
+{
+  "mobilePrefixes": {
+    "ntc": ["984", "985", "986", "974", "975", "976"],
+    "ncell": ["980", "981", "982", "970"]
+  },
+  "allMobilePrefixes": ["984", "985", "986", "980", "981", "982", "974", "975", "976", "970"],
+  "testEmailDomains": [
+    "example.test",
+    "testmail.com.np",
+    "synthetic.np",
+    "devtest.np"
+  ]
+}

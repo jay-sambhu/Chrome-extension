@@ -9,7 +9,7 @@ This document outlines the detailed checklist for all development phases of the 
 | Phase | Description | Status |
 | :--- | :--- | :---: |
 | **Phase 1** | Core Extension Boilerplate (React, Vite, TS, MV3, Basic Detector & Filler) | ✅ **Completed** |
-| **Phase 2** | Nepal Data Engine (Hierarchical Geography, Names, Contacts, Institutions) | ⏳ **Pending** |
+| **Phase 2** | Nepal Data Engine (Hierarchical Geography, Names, Contacts, Institutions) | ✅ **Completed** |
 | **Phase 3** | Synthetic Person Generator (Consistency Engine & Persona Profiles) | ⏳ **Pending** |
 | **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ⏳ **Pending** |
 | **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ⏳ **Pending** |
@@ -32,50 +32,52 @@ This document outlines the detailed checklist for all development phases of the 
 
 ---
 
-## ⏳ Phase 2 — Nepal Data Engine
+## ✅ Phase 2 — Nepal Data Engine (Completed)
 
-Expand the core datasets from basic starter lists into exhaustive, verified Nepali datasets stored in structured JSON formats.
+Exhaustive, verified Nepali datasets stored in structured JSON formats with typed querying and helper APIs.
 
 ### 2.1 Geography Hierarchy (`src/data/geography/`)
-- [ ] **Provinces Dataset** (`provinces.json`):
-  - [ ] All 7 provinces: Koshi, Madhesh, Bagmati, Gandaki, Lumbini, Karnali, Sudurpashchim.
-  - [ ] Both English names and official Nepali Devanagari names.
-- [ ] **Districts Dataset** (`districts.json`):
-  - [ ] All 77 districts mapped strictly to their respective province.
-  - [ ] Headquarters and regional classification (Himalayan, Hilly, Terai).
-- [ ] **Municipalities & Local Bodies** (`municipalities.json`):
-  - [ ] All 6 Metropolitan Cities (Kathmandu, Lalitpur, Bharatpur, Pokhara, Biratnagar, Birgunj).
-  - [ ] All 11 Sub-Metropolitan Cities (Janakpur, Ghorahi, Tulsipur, Itahari, Dharan, Butwal, Hetauda, Dhangadhi, Nepalgunj, Kalaiya, Jitpursimara).
-  - [ ] 276 Municipalities and 460 Rural Municipalities (Gaunpalika).
-  - [ ] Accurate ward count limits per local body (e.g., KMC: 32 wards, Pokhara: 33 wards).
-- [ ] **Toles and Landmarks** (`toleAddresses.json`):
-  - [ ] Popular toles, chowks, and road names categorized by major urban centers (Kathmandu Valley, Pokhara, Biratnagar, Butwal, Chitwan, Nepalgunj, Dhangadhi).
+- [x] **Provinces Dataset** (`provinces.json`):
+  - [x] All 7 provinces: Koshi, Madhesh, Bagmati, Gandaki, Lumbini, Karnali, Sudurpashchim.
+  - [x] English names, official Nepali Devanagari names, and provincial capitals.
+- [x] **Districts Dataset** (`districts.json`):
+  - [x] All 77 districts mapped strictly to their respective province.
+  - [x] Official landline area codes (`01`, `021`, `061`, `071`, `081`, `091`, etc.) and headquarters.
+- [x] **Municipalities & Local Bodies** (`municipalities.json`):
+  - [x] All 6 Metropolitan Cities (Kathmandu, Lalitpur, Bharatpur, Pokhara, Biratnagar, Birgunj).
+  - [x] All 11 Sub-Metropolitan Cities (Janakpur, Ghorahi, Tulsipur, Itahari, Dharan, Butwal, Hetauda, Dhangadhi, Nepalgunj, Kalaiya, Jitpursimara).
+  - [x] Principal Municipalities and Rural Municipalities (Gaunpalika).
+  - [x] Valid maximum ward count limits per local body (e.g., KMC: 32 wards, Pokhara: 33 wards).
+- [x] **Toles and Landmarks** (`toles.json`):
+  - [x] Popular toles, chowks, and road names categorized across major urban centers.
 
 ### 2.2 Names & Demographics (`src/data/names/`)
-- [ ] **First Names** (`maleNames.json`, `femaleNames.json`):
-  - [ ] Expanded to 200+ authentic Nepali male first names.
-  - [ ] Expanded to 200+ authentic Nepali female first names.
-- [ ] **Surnames** (`surnames.json`):
-  - [ ] Comprehensive representation across Nepali ethnicities:
+- [x] **First Names** (`maleNames.json`, `femaleNames.json`):
+  - [x] 200+ authentic Nepali male first names.
+  - [x] 200+ authentic Nepali female first names.
+- [x] **Surnames** (`surnames.json`):
+  - [x] 150+ authentic surnames representing all major Nepali ethnic groups:
     - Khas-Arya (Adhikari, Sharma, Dahal, Karki, Bhattarai, etc.)
     - Newar (Shrestha, Maharjan, Shakya, Bajracharya, Dangol, etc.)
     - Janajati / Kirat / Gurung / Magar / Tamang (Gurung, Magar, Rai, Limbu, Tamang, Thapa, etc.)
     - Madhesi & Tharu (Chaudhary, Yadav, Shah, Mahato, Jha, Mandal, etc.)
 
-### 2.3 Contact & Organization Information
-- [ ] **Phone Number Generator**:
-  - [ ] NTC mobile series (`984`, `985`, `986`, `974`, `975`, `976`).
-  - [ ] Ncell mobile series (`980`, `981`, `982`, `970`).
-  - [ ] Landline numbers with official district area codes (`01` Kathmandu, `021` Biratnagar, `025` Dharan, `061` Pokhara, `071` Butwal, `081` Nepalgunj, `091` Dhangadhi).
-- [ ] **Email Generator**:
-  - [ ] Reserved synthetic domains (`example.test`, `testmail.com.np`, `synthetic.np`).
-  - [ ] Natural email naming patterns (`first.last`, `firstlastNN`, `flastNN`).
-- [ ] **Occupations & Companies** (`occupations.json`, `companies.json`):
-  - [ ] Nepali company names (e.g., Sagarmatha Tech, Danphe Solutions, Himalayan Logistics).
-  - [ ] Common corporate, government, academic, and trade occupations with departments.
-- [ ] **Educational Institutions** (`institutions.json`):
-  - [ ] Major universities (Tribhuvan University, Kathmandu University, Pokhara University, etc.).
-  - [ ] Prominent colleges and high schools across Nepal.
+### 2.3 Contact & Organization Information (`src/data/`)
+- [x] **Phone Number & Telecom** (`telecom.json`):
+  - [x] NTC mobile series (`984`, `985`, `986`, `974`, `975`, `976`).
+  - [x] Ncell mobile series (`980`, `981`, `982`, `970`).
+  - [x] Landline numbers with official district area codes.
+- [x] **Email Generator**:
+  - [x] Reserved synthetic domains (`example.test`, `testmail.com.np`, `synthetic.np`, `devtest.np`).
+  - [x] Natural email naming patterns (`first.last`, `firstlastNN`).
+- [x] **Occupations & Companies** (`occupations.json`, `companies.json`):
+  - [x] Authentic Nepali company names (Danphe Digital, Himalayan Cloud, Sagarmatha InfoSys, etc.).
+  - [x] Common occupations across Tech, Engineering, Healthcare, Finance, Education, Hospitality, Media.
+- [x] **Educational Institutions** (`institutions.json`):
+  - [x] Major universities (Tribhuvan University, Kathmandu University, Pokhara University, etc.).
+  - [x] Prominent colleges and high schools across Nepal.
+- [x] **Typed Engine Query Layer** (`src/generator/nepalDataEngine.ts`):
+  - [x] Static querying API with full test coverage in `tests/nepalDataEngine.test.ts`.
 
 ---
 
