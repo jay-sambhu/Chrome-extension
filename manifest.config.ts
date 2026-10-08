@@ -29,5 +29,25 @@ export default defineManifest(() => ({
       js: ['src/content/index.ts'],
     },
   ],
-  permissions: ['storage', 'activeTab', 'scripting'],
+  permissions: ['storage', 'activeTab', 'scripting', 'contextMenus'],
+  commands: {
+    'quick-fill': {
+      suggested_key: {
+        default: 'Alt+Shift+F',
+        mac: 'Alt+Shift+F',
+      },
+      description: 'Instantly fill active form with Nepali test data',
+    },
+    'regenerate-fill': {
+      suggested_key: {
+        default: 'Alt+Shift+R',
+        mac: 'Alt+Shift+R',
+      },
+      description: 'Regenerate synthetic person and refill form',
+    },
+  },
+  options_ui: {
+    page: 'src/options/index.html',
+    open_in_tab: true,
+  },
 }));
