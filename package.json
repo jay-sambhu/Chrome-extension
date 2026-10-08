@@ -1,4 +1,16 @@
 {
+  "name": "nepal-test-filler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome extension to automatically fill web forms with realistic synthetic Nepal-focused test data",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": {
     "@crxjs/vite-plugin": "^3.0.0",
     "@testing-library/react": "^16.3.3",
@@ -17,3 +29,4 @@
     "react-dom": "^19.3.0"
   }
 }
+
