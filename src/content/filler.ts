@@ -103,7 +103,16 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'lastName':
     case 'gender':
     case 'dateOfBirth':
+    case 'dateOfBirthBS':
     case 'age':
+    case 'studentId':
+    case 'school':
+    case 'grade':
+    case 'faculty':
+    case 'guardianName':
+    case 'guardianPhone':
+    case 'citizenshipNumber':
+    case 'nationalId':
       return fillCategories.personal;
 
     case 'email':
@@ -127,17 +136,13 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'employeeId':
     case 'panNumber':
     case 'vatNumber':
+    case 'salary':
     case 'businessName':
-    case 'school':
+    case 'businessType':
+    case 'cooperative':
+    case 'cropType':
     case 'subject':
       return fillCategories.professional;
-
-    case 'studentId':
-    case 'guardianName':
-    case 'guardianPhone':
-    case 'citizenshipNumber':
-    case 'nationalId':
-      return fillCategories.personal;
 
     case 'username':
     case 'password':
@@ -172,6 +177,8 @@ export function getFieldValue(type: SupportedFieldType, person: SyntheticPerson)
       return person.gender;
     case 'dateOfBirth':
       return person.dateOfBirth;
+    case 'dateOfBirthBS':
+      return person.dateOfBirthBS || '2055-01-15';
     case 'age':
       return person.age.toString();
     case 'email':
@@ -204,24 +211,36 @@ export function getFieldValue(type: SupportedFieldType, person: SyntheticPerson)
       return person.companyName;
     case 'businessName':
       return person.businessName || person.companyName;
+    case 'businessType':
+      return person.businessType || 'Private Limited';
     case 'studentId':
       return person.studentId || 'STD-2026-1024';
     case 'school':
       return person.school || person.companyName;
+    case 'grade':
+      return person.grade || 'Bachelors Degree';
+    case 'faculty':
+      return person.faculty || 'Faculty of Science & Technology';
     case 'guardianName':
       return person.guardianName || person.fullName;
     case 'guardianPhone':
       return person.guardianPhone || person.phone;
     case 'employeeId':
       return person.employeeId || 'EMP-10293';
+    case 'salary':
+      return person.salary || '45,000 NPR';
     case 'panNumber':
       return person.panNumber || '102938475';
     case 'citizenshipNumber':
       return person.citizenshipNumber || `27-01-78-${Math.floor(10000 + Math.random() * 90000)}`;
     case 'nationalId':
-      return person.nationalId || `NID-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+      return person.nationalId || `${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     case 'vatNumber':
-      return person.vatNumber || `VAT-${person.panNumber || '102938475'}`;
+      return person.vatNumber || (person.panNumber ? `VAT-${person.panNumber}` : 'VAT-102938475');
+    case 'cooperative':
+      return person.cooperative || 'Small Farmers Agriculture Cooperative Ltd.';
+    case 'cropType':
+      return person.cropType || 'Paddy (Dhan)';
     case 'subject':
       return person.subject || 'Computer Science';
     case 'username':
@@ -258,8 +277,28 @@ function fillFieldElement(
 ): boolean {
   const tagName = elem.tagName.toLowerCase();
   const inputType = (elem.getAttribute('type') || '').toLowerCase();
+  const role = elem.getAttribute('role') || '';
 
-  // Handle Checkboxes & Radio buttons
+  // Handle Custom ARIA Checkbox & Radio
+  if (role === 'checkbox') {
+    elem.setAttribute('aria-checked', 'true');
+    elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    details.push({ field: fieldIdentifier || 'custom_checkbox', type: fieldType, value: true });
+    return true;
+  }
+  if (role === 'radio') {
+    if (fieldType === 'gender') {
+      const text = (elem.textContent || elem.getAttribute('value') || elem.getAttribute('aria-label') || '').toLowerCase();
+      if (text.includes(person.gender.toLowerCase())) {
+        elem.setAttribute('aria-checked', 'true');
+        elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        details.push({ field: fieldIdentifier || 'custom_radio_gender', type: fieldType, value: true });
+        return true;
+      }
+    }
+  }
+
+  // Handle HTML5 Checkboxes & Radio buttons
   if (tagName === 'input' && (inputType === 'checkbox' || inputType === 'radio')) {
     const inputElem = elem as HTMLInputElement;
     if (fieldType === 'gender' && inputType === 'radio') {
@@ -291,7 +330,19 @@ function fillFieldElement(
     return false;
   }
 
-  // Handle Input and Textarea elements
+  // Handle Combobox / React-Select / Ant Design / MUI Autocomplete search input
+  if (role === 'combobox' || elem.hasAttribute('aria-autocomplete') || elem.classList.contains('ant-select-selection-search-input')) {
+    const value = getFieldValue(fieldType, person);
+    if (value) {
+      setNativeValue(elem as HTMLInputElement, value);
+      elem.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
+      elem.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', bubbles: true }));
+      details.push({ field: fieldIdentifier || 'combobox', type: fieldType, value });
+      return true;
+    }
+  }
+
+  // Handle Standard Input and Textarea elements
   if (tagName === 'input' || tagName === 'textarea') {
     const inputElem = elem as HTMLInputElement | HTMLTextAreaElement;
     const value = getFieldValue(fieldType, person);
