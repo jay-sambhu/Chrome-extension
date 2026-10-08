@@ -14,6 +14,7 @@ import {
   generateDrivingLicenseDetails,
 } from './governmentDocuments';
 import { generateBankingDetails } from './bankingDetails';
+import { generateRandomBloodGroup } from './bloodGroup';
 
 function sample<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
@@ -412,6 +413,9 @@ export function generateSyntheticPerson(
     bankAccountName: banking.bankAccountName,
     esewaId: banking.esewaId,
     khaltiId: banking.khaltiId,
+
+    // Medical & Personal
+    bloodGroup: generateRandomBloodGroup(),
   };
 
   person.devanagari = generateDevanagariDetails(person);

@@ -60,7 +60,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - eSewa ID / Khalti ID (aligned with generated 98XXXXXXXX mobile number).
 
 ### 1.6 Blood Group Field Support
-- [ ] **Blood Group Generator**:
+- [x] **Blood Group Generator**:
   - Support for `A+`, `A-`, `B+`, `B-`, `O+`, `O-`, `AB+`, `AB-` dropdowns and radio selections (essential for medical, hospital, college, and driving license forms).
 
 ---

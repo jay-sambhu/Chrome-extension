@@ -238,6 +238,71 @@ function matchBankOption(
 }
 
 /**
+ * Matches a text or value against a Blood Group (A+, B+, O+, AB+, etc.).
+ */
+export function matchesBloodGroupText(textToTest: string, bloodGroup: string): boolean {
+  if (!textToTest || !bloodGroup) return false;
+  const cleanTarget = bloodGroup.trim().toUpperCase();
+  const codeMatch = cleanTarget.match(/\b(A|B|AB|O)[+-]\b/i);
+  const targetCode = codeMatch ? codeMatch[0].toUpperCase() : cleanTarget;
+
+  const type = targetCode.slice(0, -1);
+  const isPos = targetCode.endsWith('+');
+
+  const textUpper = textToTest.trim().toUpperCase();
+  if (textUpper === targetCode) return true;
+
+  const escapedCode = targetCode.replace('+', '\\+').replace('-', '\\-');
+  const codeRegex = new RegExp(`(^|[^a-zA-Z0-9])${escapedCode}([^a-zA-Z0-9]|$)`, 'i');
+  if (codeRegex.test(textToTest)) return true;
+
+  // Normalize underscores to spaces so A_POS, B_NEG, O_POSITIVE match word boundaries
+  const normalizedText = textToTest.replace(/[_]/g, ' ');
+
+  const isPositiveMentioned = /pos|\+|पोजेटिभ/i.test(normalizedText);
+  const isNegativeMentioned = /neg|\-|नेगेटिभ/i.test(normalizedText);
+
+  if (isPos && !isPositiveMentioned) return false;
+  if (!isPos && !isNegativeMentioned) return false;
+
+  if (type === 'AB') {
+    return /\bAB\b|एबी|ए\s*बी/i.test(normalizedText);
+  } else if (type === 'A') {
+    return /\bA\b|ए(?!बी)/i.test(normalizedText) && !/\bAB\b|एबी|ए\s*बी/i.test(normalizedText);
+  } else if (type === 'B') {
+    return /\bB\b|बी/i.test(normalizedText) && !/\bAB\b|एबी|ए\s*बी/i.test(normalizedText);
+  } else if (type === 'O') {
+    return /\bO\b|ओ/i.test(normalizedText);
+  }
+
+  return false;
+}
+
+/**
+ * Matches a select option against Blood Groups (A+, B+, O+, AB+, etc.).
+ */
+function matchBloodGroupOption(
+  options: HTMLOptionElement[],
+  targetValue: string,
+  altValue?: string
+): HTMLOptionElement | undefined {
+  const all = [targetValue, altValue].filter(Boolean) as string[];
+  const codeMatch = all.map((s) => s.match(/\b(A|B|AB|O)[+-]\b/i)).find(Boolean);
+  const targetCode = codeMatch ? codeMatch[0].toUpperCase() : undefined;
+  if (!targetCode) return undefined;
+
+  for (const opt of options) {
+    const combined = `${opt.value} ${opt.text}`;
+    if (matchesBloodGroupText(combined, targetCode)) {
+      return opt;
+    }
+  }
+
+  return undefined;
+}
+
+
+/**
  * Finds the closest matching option for a select element, supporting dual-script alternatives.
  */
 function fillSelectElement(select: HTMLSelectElement, targetValue: string, altValue?: string): boolean {
@@ -277,6 +342,11 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
   // 6. Commercial Bank option matching
   if (!matchedOption) {
     matchedOption = matchBankOption(options, targetValue, altValue);
+  }
+
+  // 7. Blood Group option matching
+  if (!matchedOption) {
+    matchedOption = matchBloodGroupOption(options, targetValue, altValue);
   }
 
   // 5. Partial match with primary target
@@ -346,6 +416,7 @@ function isCategoryEnabled(fieldType: SupportedFieldType, options: FillOptions):
     case 'bankAccountName':
     case 'esewaId':
     case 'khaltiId':
+    case 'bloodGroup':
       return fillCategories.personal || fillCategories.professional;
 
     case 'email':
@@ -577,6 +648,8 @@ export function getFieldValue(
         return dev.esewaId || (person.esewaId ? toNepaliNumerals(person.esewaId) : (person.phone ? toNepaliNumerals(person.phone) : '९८४१२३४५६७'));
       case 'khaltiId':
         return dev.khaltiId || (person.khaltiId ? toNepaliNumerals(person.khaltiId) : (person.phone ? toNepaliNumerals(person.phone) : '९८४१२३४५६७'));
+      case 'bloodGroup':
+        return dev.bloodGroup || person.bloodGroup || 'O+';
       case 'textarea':
         return `${dev.fullName}को विवरण। ठेगाना: ${dev.fullAddress}। पेशा: ${dev.occupation}।`;
       case 'text':
@@ -724,6 +797,8 @@ export function getFieldValue(
       return person.esewaId || person.phone;
     case 'khaltiId':
       return person.khaltiId || person.phone;
+    case 'bloodGroup':
+      return person.bloodGroup || 'O+';
     case 'vatNumber':
       return person.vatNumber || (person.panNumber ? `VAT-${person.panNumber}` : 'VAT-102938475');
     case 'cooperative':
@@ -789,6 +864,15 @@ function fillFieldElement(
         details.push({ field: fieldIdentifier || 'custom_radio_gender', type: fieldType, value: true });
         return true;
       }
+    } else if (fieldType === 'bloodGroup') {
+      const targetGroup = person.bloodGroup || 'O+';
+      const text = `${elem.textContent || ''} ${elem.getAttribute('value') || ''} ${elem.getAttribute('aria-label') || ''}`;
+      if (matchesBloodGroupText(text, targetGroup)) {
+        elem.setAttribute('aria-checked', 'true');
+        elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        details.push({ field: fieldIdentifier || 'custom_radio_blood_group', type: fieldType, value: targetGroup });
+        return true;
+      }
     }
   }
 
@@ -806,6 +890,20 @@ function fillFieldElement(
       ) {
         setNativeChecked(inputElem, true);
         details.push({ field: fieldIdentifier || 'radio_gender', type: fieldType, value: true });
+        return true;
+      }
+    } else if (fieldType === 'bloodGroup' && inputType === 'radio') {
+      const targetGroup = person.bloodGroup || 'O+';
+      const val = inputElem.value || '';
+      const labelText = inputElem.labels && inputElem.labels[0] ? inputElem.labels[0].textContent || '' : '';
+      const parentLabel = inputElem.closest('label')?.textContent || '';
+      const ariaLabel = inputElem.getAttribute('aria-label') || '';
+      const nextSiblingText = inputElem.nextSibling?.textContent || '';
+      const combined = `${val} ${labelText} ${parentLabel} ${ariaLabel} ${nextSiblingText}`;
+
+      if (matchesBloodGroupText(combined, targetGroup)) {
+        setNativeChecked(inputElem, true);
+        details.push({ field: fieldIdentifier || 'radio_blood_group', type: fieldType, value: targetGroup });
         return true;
       }
     } else if (inputType === 'checkbox') {

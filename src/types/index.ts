@@ -1,4 +1,5 @@
 export type Gender = 'Male' | 'Female' | 'Other';
+export type BloodGroup = 'A+' | 'A-' | 'B+' | 'B-' | 'O+' | 'O-' | 'AB+' | 'AB-';
 export type ProfileType = 'general' | 'student' | 'employee' | 'business' | 'teacher' | 'farmer';
 export type FillScript = 'en' | 'np';
 
@@ -75,6 +76,9 @@ export interface DevanagariDetails {
   bankAccountName?: string;
   esewaId?: string;
   khaltiId?: string;
+
+  // Medical & Personal
+  bloodGroup?: string;
 }
 
 export interface NepalAddress {
@@ -159,6 +163,9 @@ export interface SyntheticPerson {
   bankAccountName?: string;
   esewaId?: string;
   khaltiId?: string;
+
+  // Medical & Personal
+  bloodGroup?: BloodGroup;
 }
 
 export type SupportedFieldType =
@@ -167,6 +174,7 @@ export type SupportedFieldType =
   | 'middleName'
   | 'lastName'
   | 'gender'
+  | 'bloodGroup'
   | 'dateOfBirth'
   | 'dateOfBirthBS'
   | 'dateBS'

@@ -48,8 +48,8 @@ export function getFieldLabel(element: HTMLElement): string {
     return prevSibling.textContent.trim();
   }
 
-  // 6. Parent container header or label (e.g. Bootstrap/Tailwind form-group, MUI floating label)
-  const container = element.closest('.form-group, .form-field, .input-group, .field, div');
+  // 6. Parent container header or label (e.g. Bootstrap/Tailwind form-group, MUI floating label, fieldset legend)
+  const container = element.closest('.form-group, .form-field, .input-group, .field, fieldset, div');
   if (container) {
     const innerLabel = container.querySelector('label, .form-label, .label, legend');
     if (innerLabel && innerLabel.textContent && innerLabel !== element) {
@@ -191,6 +191,11 @@ const PATTERN_RULES: MatchRule[] = [
   {
     type: 'khaltiId',
     regex: /(?:\b(khalti\s*(id|no|num|number)?)\b|खल्ती(\s*आइडी)?)/i,
+    baseConfidence: 0.98,
+  },
+  {
+    type: 'bloodGroup',
+    regex: /(?:\b(blood\s*group|blood\s*grp|blood\s*type|bloodgroup|bloodtype|bgroup|ragat\s*samuha|blood)\b|रक्त\s*समूह|ब्लड\s*ग्रुप)/i,
     baseConfidence: 0.98,
   },
 
@@ -676,12 +681,37 @@ export function detectFieldType(element: HTMLElement): DetectedField {
   const placeholder = element.getAttribute('placeholder') || '';
   const title = element.getAttribute('title') || '';
 
-  const script = detectTargetScript({ label, placeholder, title, name: name || '', id: id || '' });
+  // For radio buttons, checkboxes, or grouped fields, check fieldset legend and radiogroup labels
+  let groupLabel = '';
+  const fieldset = element.closest('fieldset');
+  if (fieldset) {
+    const legend = fieldset.querySelector('legend');
+    if (legend && legend.textContent) {
+      groupLabel += ` ${legend.textContent.trim()}`;
+    }
+  }
+  const radiogroup = element.closest('[role="radiogroup"]');
+  if (radiogroup) {
+    const labelledBy = radiogroup.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      const lbl = document.getElementById(labelledBy);
+      if (lbl && lbl.textContent) {
+        groupLabel += ` ${lbl.textContent.trim()}`;
+      }
+    }
+    const ariaLabel = radiogroup.getAttribute('aria-label');
+    if (ariaLabel) {
+      groupLabel += ` ${ariaLabel.trim()}`;
+    }
+  }
+
+  const effectiveLabel = `${label} ${groupLabel}`.trim();
+  const script = detectTargetScript({ label: effectiveLabel, placeholder, title, name: name || '', id: id || '' });
 
   // 1. Direct autocomplete signal (Highest precedence if matched)
   if (autocomplete && AUTOCOMPLETE_MAP[autocomplete]) {
     let matchedType = AUTOCOMPLETE_MAP[autocomplete];
-    const rawSignals = `${label} ${name || ''} ${id || ''} ${placeholder} ${title}`;
+    const rawSignals = `${effectiveLabel} ${name || ''} ${id || ''} ${placeholder} ${title}`;
     const addressScope = detectAddressScope(element, rawSignals);
     if (addressScope === 'temporary') {
       if (matchedType === 'province') matchedType = 'temporaryProvince';
@@ -721,7 +751,7 @@ export function detectFieldType(element: HTMLElement): DetectedField {
   };
 
   const signals = {
-    label: normalizeSignals(label),
+    label: normalizeSignals(effectiveLabel),
     name: normalizeSignals(name || ''),
     id: normalizeSignals(id || ''),
     placeholder: normalizeSignals(placeholder),
@@ -777,6 +807,19 @@ export function detectFieldType(element: HTMLElement): DetectedField {
       const dayNums = yearNums.filter((n) => n >= 1 && n <= 32);
       if (hasGatey || (dayNums.length >= 28 && (isBsContext || /(?:day|gatey|दिन|गते)/i.test(rawCombinedSignals)))) {
         addScore('bsDay', 3.5);
+      }
+
+      // Blood group check: check if options contain blood group patterns
+      const bloodGroupOptionsCount = options.filter((opt) => {
+        const valText = `${opt.text} ${opt.value}`.trim();
+        return (
+          /\b(A|B|AB|O)[+-]\b/i.test(valText) ||
+          /(?:A|B|AB|O)\s*(?:positive|negative|\+ve|\-ve)/i.test(valText) ||
+          /(?:पोजेटिभ|नेगेटिभ)/.test(valText)
+        );
+      }).length;
+      if (bloodGroupOptionsCount >= 3) {
+        addScore('bloodGroup', 3.5);
       }
     }
   }

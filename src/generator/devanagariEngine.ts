@@ -1,5 +1,6 @@
 import { DevanagariDetails, SyntheticPerson } from '../types';
 import { COMMERCIAL_BANKS } from './bankingDetails';
+import { BLOOD_GROUPS_DEVANAGARI } from './bloodGroup';
 
 /**
  * Maps English numerals 0-9 to Nepali Devanagari numerals ०-९.
@@ -866,5 +867,8 @@ export function generateDevanagariDetails(person: SyntheticPerson): DevanagariDe
     bankAccountName: nepFullName,
     esewaId: person.esewaId ? toNepaliNumerals(person.esewaId) : undefined,
     khaltiId: person.khaltiId ? toNepaliNumerals(person.khaltiId) : undefined,
+
+    // Medical & Personal
+    bloodGroup: person.bloodGroup ? BLOOD_GROUPS_DEVANAGARI[person.bloodGroup] : undefined,
   };
 }
