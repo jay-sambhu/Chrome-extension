@@ -19,11 +19,11 @@ This document details upcoming improvements, feature enhancements, and quality-o
 ## 1. 🇳🇵 Nepali Real-World Data & Localization (High Priority)
 
 ### 1.1 Devanagari Script (नेपाली युनिकोड) Support
-- [ ] **Dual Script Generator Engine**:
+- [x] **Dual Script Generator Engine**:
   - Add support for generating both English (Romanized) and Nepali Devanagari unicode text (`राम बहादुर श्रेष्ठ`, `काठमाडौँ महानगरपालिका`, `बागमती प्रदेश`, `शिक्षक`).
-- [ ] **Popup & Options Script Toggle**:
+- [x] **Popup & Options Script Toggle**:
   - Add a toggle switch in Popup and Settings: `Fill Script: English (Default) | नेपाली (Devanagari)`.
-- [ ] **Field-Level Script Auto-Detection**:
+- [x] **Field-Level Script Auto-Detection**:
   - Automatically detect Devanagari requirements if the field label or placeholder is in Devanagari script (e.g., `नाम (नेपालीमा)`, `ठेगाना`).
 
 ### 1.2 Permanent vs. Current/Temporary Address Distinction

@@ -9,7 +9,7 @@ import {
 } from '../src/generator/devanagariEngine';
 import { detectFieldType, detectTargetScript } from '../src/content/detector';
 import { getFieldValue, fillPage } from '../src/content/filler';
-import { FillOptions, SyntheticPerson } from '../src/types';
+import { FillOptions } from '../src/types';
 
 describe('Phase 1.1 — Devanagari Script (नेपाली युनिकोड) Support', () => {
   beforeEach(() => {

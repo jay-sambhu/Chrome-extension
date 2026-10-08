@@ -18,7 +18,6 @@ import {
   Trash2,
   ShieldCheck,
   Globe,
-  Languages,
 } from 'lucide-react';
 import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 import {
