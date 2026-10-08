@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { generateSyntheticPerson } from '../generator/personGenerator';
-import { FillOptions, SyntheticPerson } from '../types';
+import { FillOptions, PageFieldInspection, SupportedFieldType, SyntheticPerson } from '../types';
 import {
   Check,
   RefreshCw,
@@ -17,8 +17,17 @@ import {
   EyeOff,
   Trash2,
   ShieldCheck,
+  Globe,
 } from 'lucide-react';
 import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
+import {
+  deleteDomainRule,
+  FieldMappingRule,
+  getDomainMapping,
+  normalizeDomain,
+  saveDomainRule,
+} from '../services/domainMapping';
+import { VALID_FIELD_TYPES } from '../services/geminiClassifier';
 
 export const App: React.FC = () => {
   const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
@@ -31,6 +40,16 @@ export const App: React.FC = () => {
   });
   const [status, setStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [isFilling, setIsFilling] = useState(false);
+
+  // Tab State: 'fill' | 'mappings'
+  const [activeTab, setActiveTab] = useState<'fill' | 'mappings'>('fill');
+
+  // Website Mapping & Inspector State
+  const [activeDomain, setActiveDomain] = useState<string>('localhost');
+  const [inspectedFields, setInspectedFields] = useState<PageFieldInspection[]>([]);
+  const [domainRules, setDomainRules] = useState<FieldMappingRule[]>([]);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [selectedOverrides, setSelectedOverrides] = useState<Record<string, SupportedFieldType>>({});
 
   // Gemini AI Settings State
   const [showAiSettings, setShowAiSettings] = useState(false);
@@ -85,6 +104,62 @@ export const App: React.FC = () => {
     setCacheCount(0);
     setAiSaveMsg('Cache cleared!');
     setTimeout(() => setAiSaveMsg(null), 2500);
+  };
+
+  const loadActiveDomainAndInspect = useCallback(async () => {
+    setIsInspecting(true);
+    try {
+      if (typeof chrome === 'undefined' || !chrome.tabs) {
+        setActiveDomain('localhost');
+        const mapping = await getDomainMapping('localhost');
+        setDomainRules(mapping?.rules || []);
+        setIsInspecting(false);
+        return;
+      }
+
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.url || !tab.id) {
+        setIsInspecting(false);
+        return;
+      }
+
+      const domain = normalizeDomain(tab.url);
+      setActiveDomain(domain);
+
+      const mapping = await getDomainMapping(domain);
+      setDomainRules(mapping?.rules || []);
+
+      chrome.tabs.sendMessage(tab.id, { action: 'GET_PAGE_FIELDS' }, (res: any) => {
+        if (chrome.runtime.lastError || !res) {
+          setInspectedFields([]);
+        } else if (res?.status === 'ok') {
+          setInspectedFields(res.fields || []);
+        }
+        setIsInspecting(false);
+      });
+    } catch {
+      setIsInspecting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'mappings') {
+      loadActiveDomainAndInspect();
+    }
+  }, [activeTab, loadActiveDomainAndInspect]);
+
+  const handleSaveOverride = async (fieldIdentifier: string, targetType: SupportedFieldType) => {
+    await saveDomainRule(activeDomain, {
+      selectorOrName: fieldIdentifier,
+      targetType,
+      description: `Mapped on ${activeDomain}`,
+    });
+    await loadActiveDomainAndInspect();
+  };
+
+  const handleDeleteRule = async (selectorOrName: string) => {
+    await deleteDomainRule(activeDomain, selectorOrName);
+    await loadActiveDomainAndInspect();
   };
 
   const handleProfileChange = (newProfile: FillOptions['profile']) => {
@@ -322,119 +397,259 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Profile Selector */}
-      <div className="section-block">
-        <label htmlFor="profile-select" className="section-label">Target Profile</label>
-        <div className="select-wrapper">
-          <select
-            id="profile-select"
-            className="custom-select"
-            value={profile}
-            onChange={(e) => handleProfileChange(e.target.value as FillOptions['profile'])}
-          >
-            <option value="general">General Person</option>
-            <option value="student">Student</option>
-            <option value="employee">Employee</option>
-            <option value="business">Business Owner</option>
-            <option value="teacher">Teacher</option>
-            <option value="farmer">Farmer</option>
-          </select>
-        </div>
+      {/* Navigation Tabs */}
+      <div className="popup-tab-bar">
+        <button
+          type="button"
+          className={`popup-tab-btn ${activeTab === 'fill' ? 'active' : ''}`}
+          onClick={() => setActiveTab('fill')}
+        >
+          <Zap size={13} />
+          <span>Fill Form</span>
+        </button>
+        <button
+          type="button"
+          className={`popup-tab-btn ${activeTab === 'mappings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('mappings')}
+        >
+          <Globe size={13} />
+          <span>Site Mappings</span>
+        </button>
       </div>
 
-      {/* Data Categories */}
-      <div className="section-block">
-        <div className="section-label">Included Categories</div>
-        <div className="category-grid">
-          {(['personal', 'contact', 'address', 'professional'] as const).map((cat) => (
-            <div
-              key={cat}
-              className={`category-chip ${categories[cat] ? 'active' : ''}`}
-              onClick={() => toggleCategory(cat)}
-            >
-              <div className="checkbox-indicator">
-                {categories[cat] && <Check size={10} strokeWidth={3} />}
-              </div>
-              <span style={{ textTransform: 'capitalize' }}>{cat}</span>
+      {activeTab === 'fill' ? (
+        <>
+          {/* Profile Selector */}
+          <div className="section-block">
+            <label htmlFor="profile-select" className="section-label">Target Profile</label>
+            <div className="select-wrapper">
+              <select
+                id="profile-select"
+                className="custom-select"
+                value={profile}
+                onChange={(e) => handleProfileChange(e.target.value as FillOptions['profile'])}
+              >
+                <option value="general">General Person</option>
+                <option value="student">Student</option>
+                <option value="employee">Employee</option>
+                <option value="business">Business Owner</option>
+                <option value="teacher">Teacher</option>
+                <option value="farmer">Farmer</option>
+              </select>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Synthetic Person Preview Card */}
-      <div className="preview-card">
-        <div className="preview-header">
-          <div className="preview-name">{person.honorific} {person.fullName}</div>
-          <div className="preview-gender-badge">{person.profileType.toUpperCase()} • {person.gender}, {person.age}y</div>
-        </div>
+          {/* Data Categories */}
+          <div className="section-block">
+            <div className="section-label">Included Categories</div>
+            <div className="category-grid">
+              {(['personal', 'contact', 'address', 'professional'] as const).map((cat) => (
+                <div
+                  key={cat}
+                  className={`category-chip ${categories[cat] ? 'active' : ''}`}
+                  onClick={() => toggleCategory(cat)}
+                >
+                  <div className="checkbox-indicator">
+                    {categories[cat] && <Check size={10} strokeWidth={3} />}
+                  </div>
+                  <span style={{ textTransform: 'capitalize' }}>{cat}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
-        <div className="preview-row">
-          <Phone size={12} className="preview-icon" />
-          <span className="preview-text">{person.phone} {person.telephone ? `• Tel: ${person.telephone}` : ''}</span>
-        </div>
+          {/* Synthetic Person Preview Card */}
+          <div className="preview-card">
+            <div className="preview-header">
+              <div className="preview-name">{person.honorific} {person.fullName}</div>
+              <div className="preview-gender-badge">{person.profileType.toUpperCase()} • {person.gender}, {person.age}y</div>
+            </div>
 
-        <div className="preview-row">
-          <Mail size={12} className="preview-icon" />
-          <span className="preview-text">{person.workEmail || person.email}</span>
-        </div>
+            <div className="preview-row">
+              <Phone size={12} className="preview-icon" />
+              <span className="preview-text">{person.phone} {person.telephone ? `• Tel: ${person.telephone}` : ''}</span>
+            </div>
 
-        <div className="preview-row">
-          <MapPin size={12} className="preview-icon" />
-          <span className="preview-text">{person.address.fullAddress}</span>
-        </div>
+            <div className="preview-row">
+              <Mail size={12} className="preview-icon" />
+              <span className="preview-text">{person.workEmail || person.email}</span>
+            </div>
 
-        <div className="preview-row">
-          <Briefcase size={12} className="preview-icon" />
-          <span className="preview-text">
-            {person.school
-              ? `${person.grade || 'Student'} • ${person.school}`
-              : person.businessName
-              ? `${person.jobTitle} • ${person.businessName}`
-              : person.cropType
-              ? `${person.occupation} • ${person.cropType}`
-              : `${person.occupation} • ${person.companyName}`}
-          </span>
-        </div>
-      </div>
+            <div className="preview-row">
+              <MapPin size={12} className="preview-icon" />
+              <span className="preview-text">{person.address.fullAddress}</span>
+            </div>
 
-      {/* Status banner */}
-      {status && (
-        <div className={`status-banner ${status.type}`}>
-          <span>{status.message}</span>
+            <div className="preview-row">
+              <Briefcase size={12} className="preview-icon" />
+              <span className="preview-text">
+                {person.school
+                  ? `${person.grade || 'Student'} • ${person.school}`
+                  : person.businessName
+                  ? `${person.jobTitle} • ${person.businessName}`
+                  : person.cropType
+                  ? `${person.occupation} • ${person.cropType}`
+                  : `${person.occupation} • ${person.companyName}`}
+              </span>
+            </div>
+          </div>
+
+          {/* Status banner */}
+          {status && (
+            <div className={`status-banner ${status.type}`}>
+              <span>{status.message}</span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="button-group">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleRegenerate}
+              title="Generate a fresh synthetic person"
+            >
+              <RefreshCw size={14} />
+              Generate New Data
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleFillPage}
+              disabled={isFilling}
+            >
+              {isFilling ? (
+                <>
+                  <Sparkles size={16} className="animate-spin" />
+                  Filling Page...
+                </>
+              ) : (
+                <>
+                  <Zap size={16} />
+                  Fill Page
+                </>
+              )}
+            </button>
+          </div>
+        </>
+      ) : (
+        /* Website Specific Mappings Tab */
+        <div className="mappings-container">
+          <div className="mappings-domain-header">
+            <div className="domain-info">
+              <Globe size={14} className="domain-icon" />
+              <span className="domain-title">{activeDomain}</span>
+            </div>
+            <button
+              type="button"
+              className="btn-refresh-inspect"
+              onClick={loadActiveDomainAndInspect}
+              disabled={isInspecting}
+              title="Re-scan active page fields"
+            >
+              <RefreshCw size={12} className={isInspecting ? 'animate-spin' : ''} />
+              Scan
+            </button>
+          </div>
+
+          {/* Saved Domain Overrides */}
+          <div className="section-block">
+            <div className="section-label">Custom Overrides on this Domain</div>
+            {domainRules.length === 0 ? (
+              <div className="empty-rules-hint">
+                No custom overrides saved for {activeDomain}. Fields use rule-based detection or AI classification.
+              </div>
+            ) : (
+              <div className="rules-list">
+                {domainRules.map((rule) => (
+                  <div key={rule.selectorOrName} className="rule-item-row">
+                    <div className="rule-info">
+                      <code className="rule-key">{rule.selectorOrName}</code>
+                      <span className="rule-arrow">➔</span>
+                      <span className="rule-target">{rule.targetType}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-delete-rule"
+                      onClick={() => handleDeleteRule(rule.selectorOrName)}
+                      title="Delete override rule"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Page Field Inspector */}
+          <div className="section-block">
+            <div className="section-label">
+              Active Page Fields ({inspectedFields.length})
+            </div>
+
+            {isInspecting ? (
+              <div className="loading-hint">Inspecting inputs on {activeDomain}...</div>
+            ) : inspectedFields.length === 0 ? (
+              <div className="empty-rules-hint">
+                No interactive inputs found on the active page, or page is restricted. Click Scan to refresh.
+              </div>
+            ) : (
+              <div className="inspected-fields-list">
+                {inspectedFields.map((field) => {
+                  const fieldKey = field.name || field.id || `field_${field.index}`;
+                  const currentSelected = selectedOverrides[fieldKey] || field.detectedType;
+
+                  return (
+                    <div key={`${fieldKey}_${field.index}`} className="inspected-field-card">
+                      <div className="field-card-top">
+                        <div className="field-name-block">
+                          <span className="field-identifier">{fieldKey}</span>
+                          {field.label && <span className="field-label-text">({field.label})</span>}
+                        </div>
+                        <span className={`source-badge ${field.source}`}>
+                          {field.source === 'domain_override' && 'Override'}
+                          {field.source === 'heuristic' && 'Heuristic'}
+                          {field.source === 'ai_cached' && 'AI Cached'}
+                          {field.source === 'unmapped' && 'Unmapped'}
+                        </span>
+                      </div>
+
+                      <div className="override-action-row">
+                        <select
+                          className="mapping-select"
+                          value={currentSelected}
+                          onChange={(e) =>
+                            setSelectedOverrides({
+                              ...selectedOverrides,
+                              [fieldKey]: e.target.value as SupportedFieldType,
+                            })
+                          }
+                        >
+                          <option value="unknown">Unmapped / Ignore</option>
+                          {VALID_FIELD_TYPES.filter((t) => t !== 'unknown').map((ft) => (
+                            <option key={ft} value={ft}>
+                              {ft}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn-apply-override"
+                          onClick={() => handleSaveOverride(fieldKey, currentSelected)}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
-
-      {/* Actions */}
-      <div className="button-group">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleRegenerate}
-          title="Generate a fresh synthetic person"
-        >
-          <RefreshCw size={14} />
-          Generate New Data
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handleFillPage}
-          disabled={isFilling}
-        >
-          {isFilling ? (
-            <>
-              <Sparkles size={16} className="animate-spin" />
-              Filling Page...
-            </>
-          ) : (
-            <>
-              <Zap size={16} />
-              Fill Page
-            </>
-          )}
-        </button>
-      </div>
     </div>
   );
 };
