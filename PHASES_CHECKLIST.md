@@ -14,7 +14,7 @@ This document outlines the detailed checklist for all development phases of the 
 | **Phase 4** | Advanced Field Detection (Romanized Nepali & Heuristic Detection) | ✅ **Completed** |
 | **Phase 5** | Gemini Integration (Unknown Field Classifier & Dataset Expansion) | ✅ **Completed** |
 | **Phase 6** | Website-Specific Mapping (Domain Overrides & Storage Engine) | ✅ **Completed** |
-| **Phase 7** | Advanced Profiles & Form Controls (Student, Employee, Farmer, Shortcuts) | ⏳ **Pending** |
+| **Phase 7** | Advanced Profiles & Form Controls (Student, Employee, Farmer, Shortcuts) | ✅ **Completed** |
 
 ---
 
@@ -186,35 +186,51 @@ Empower power-users and QA engineers to configure domain-specific field override
 
 ---
 
-## ⏳ Phase 7 — Advanced Controls & Specialized Profiles
+## ✅ Phase 7 — Advanced Controls & Specialized Profiles (Completed)
 
 Expand form-filling flexibility with domain-specific archetypes and browser productivity enhancements.
 
-- [ ] **Specialized Test Profiles**:
-  - [ ] **Student**:
-    - Student ID / Roll Number generator.
-    - Associated School/College/University.
-    - Guardian Name & Guardian Phone number.
-  - [ ] **Employee**:
-    - Employee ID (`EMP-XXXX`).
+- [x] **Specialized Test Profiles**:
+  - [x] **Student**:
+    - Student ID / Roll Number generator (`STU-YYYY-XXXX`).
+    - Associated School/College/University (`school`).
+    - Academic faculty and grade/level (`faculty`, `grade`).
+    - Guardian Name & Guardian Phone number (`guardianName`, `guardianPhone`).
+  - [x] **Employee**:
+    - Employee ID (`EMP-XXXXX`).
     - Department, Designation, and Corporate Email (`name@company.com.np`).
-    - PAN number format (`XXXXXXXXX`).
-  - [ ] **Business Owner**:
-    - Business Name, Registration Type (Pvt Ltd, Proprietorship).
-    - Synthetic VAT/PAN number.
-    - Registered Office Address.
-  - [ ] **Farmer / Agriculture**:
-    - Agricultural occupation and cooperative name.
-    - Rural municipality and rural ward focus.
-- [ ] **Keyboard Shortcuts**:
-  - [ ] `Alt+Shift+F`: Instantly fills active tab without opening the popup.
-  - [ ] `Alt+Shift+R`: Re-generates synthetic profile and re-fills.
-- [ ] **Custom Form Controls Support**:
-  - [ ] React-Select, Material-UI Autocomplete, Ant Design Dropdowns.
-  - [ ] Custom checkbox/radio groups built with styled `div` / `span` tags.
-  - [ ] Date picker components (Nepali Bikram Sambat / BS converter preview).
-- [ ] **Extension Options & Settings Page**:
-  - [ ] Full options page for configuring default profiles, enabling/disabling Gemini, managing custom mappings, and backing up data.
+    - PAN number format (`XXXXXXXXX`) and Salary (`XX,000 NPR`).
+  - [x] **Business Owner**:
+    - Business Name, Registration Type (Pvt Ltd, Proprietorship, Partnership).
+    - Synthetic VAT/PAN number (`panNumber`, `vatNumber`).
+    - Registered Office Address (`registeredAddress`).
+  - [x] **Farmer / Agriculture**:
+    - Agricultural occupation and cooperative name (`cooperative`).
+    - Crop type (`cropType`: Paddy, Maize, Tea, Cardamom, Coffee, Vegetables).
+    - Rural municipality and rural ward focus with `preferRural` generator.
+  - [x] **Teacher / Faculty**:
+    - Subject specialization, academic faculty, faculty staff ID, and institution.
+  - [x] **National IDs & Bikram Sambat (BS) Dates**:
+    - `convertAdToBs()` AD-to-BS calendar converter.
+    - Nepali citizenship number (`DD-01-YY-XXXXX`) and 10-digit National ID (`nationalId`).
+- [x] **Keyboard Shortcuts & Context Menus**:
+  - [x] `Alt+Shift+F`: Instantly fills active tab without opening the popup.
+  - [x] `Alt+Shift+R`: Re-generates synthetic profile and re-fills.
+  - [x] Context Menu item: Right-click on form / editable field to trigger filling with Nepali test data.
+- [x] **Custom Form Controls Support**:
+  - [x] React-Select, Material-UI Autocomplete, Ant Design Dropdowns (`[role="combobox"]`, `aria-autocomplete`, `.ant-select-selection-search-input`).
+  - [x] Custom checkbox and radio groups built with styled elements (`[role="checkbox"]`, `[role="radio"]`, `aria-checked`).
+  - [x] Date picker components supporting both Gregorian (AD) and Bikram Sambat (BS) date formats.
+- [x] **Extension Options & Settings Page**:
+  - [x] Dedicated options UI (`src/options/index.html`, `src/options/App.tsx`) with dark crimson/slate aesthetics.
+  - [x] Configure default archetype profiles with real-time synthetic data preview.
+  - [x] Manage, inspect, and delete website-specific domain mappings.
+  - [x] Configure Gemini API key and view/clear classification cache.
+  - [x] Export and restore settings & rules backup as JSON files.
+- [x] **Comprehensive Test Suite**:
+  - [x] 12 targeted tests in `tests/advancedProfiles.test.ts` for specialized profile schemas, BS date conversion, and field detection.
+  - [x] 4 targeted tests in `tests/customControls.test.ts` for custom ARIA checkboxes, radios, comboboxes, and specialized values.
+  - [x] All 9 test suites (77 tests total) passing cleanly with 100% green status.
 
 ---
 
