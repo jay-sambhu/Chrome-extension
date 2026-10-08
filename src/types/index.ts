@@ -344,11 +344,38 @@ export interface ExtensionSettings {
   theme: 'dark' | 'light' | 'system';
 }
 
+export interface FieldSnapshot {
+  element: HTMLElement;
+  type: 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'aria-checkbox' | 'aria-radio';
+  value?: string;
+  checked?: boolean;
+  selectedIndex?: number;
+  ariaChecked?: string | null;
+}
+
+export interface FormSnapshot {
+  timestamp: number;
+  fields: FieldSnapshot[];
+}
+
+export interface UndoResult {
+  success: boolean;
+  revertedCount: number;
+  action: 'reverted' | 'cleared';
+  details?: Array<{
+    field: string;
+    restoredValue: string | boolean | number;
+  }>;
+}
+
 export type ExtensionMessage =
   | { action: 'SCAN_PAGE' }
   | { action: 'GET_PAGE_FIELDS' }
   | { action: 'FILL_PAGE'; person: SyntheticPerson; options: FillOptions }
+  | { action: 'UNDO_FILL' }
+  | { action: 'CLEAR_FORM' }
   | { action: 'GET_LAST_GENERATED_PERSON' }
   | { action: 'CLASSIFY_FIELD'; payload: FieldClassificationPayload }
   | { action: 'PING' };
+
 

@@ -5,6 +5,7 @@ import { FillOptions, FillScript, PageFieldInspection, SupportedFieldType, Synth
 import {
   Check,
   RefreshCw,
+  RotateCcw,
   Zap,
   Sparkles,
   MapPin,
@@ -41,6 +42,7 @@ export const App: React.FC = () => {
   });
   const [status, setStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [isFilling, setIsFilling] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
 
   // Tab State: 'fill' | 'mappings'
   const [activeTab, setActiveTab] = useState<'fill' | 'mappings'>('fill');
@@ -280,6 +282,51 @@ export const App: React.FC = () => {
       console.error(err);
       setStatus({ type: 'error', message: 'Failed to communicate with tab.' });
       setIsFilling(false);
+    }
+  };
+
+  const handleUndoFill = async () => {
+    setIsReverting(true);
+    setStatus(null);
+
+    try {
+      if (typeof chrome === 'undefined' || !chrome.tabs) {
+        setStatus({ type: 'warning', message: 'Chrome extension environment not detected.' });
+        setIsReverting(false);
+        return;
+      }
+
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) {
+        setStatus({ type: 'error', message: 'No active browser tab found.' });
+        setIsReverting(false);
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id, { action: 'UNDO_FILL' }, (response: any) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError || !response || response.status !== 'ok') {
+          setStatus({
+            type: 'warning',
+            message: 'Could not revert form. Please ensure the page has form fields.',
+          });
+        } else {
+          const count = response.result?.revertedCount ?? 0;
+          const action = response.result?.action;
+          setStatus({
+            type: 'success',
+            message:
+              action === 'reverted'
+                ? `Reverted ${count} field${count === 1 ? '' : 's'} to pre-fill state!`
+                : `Cleared ${count} field${count === 1 ? '' : 's'}!`,
+          });
+        }
+        setIsReverting(false);
+      });
+    } catch (err) {
+      console.error('Undo fill error:', err);
+      setStatus({ type: 'error', message: 'Failed to communicate with tab.' });
+      setIsReverting(false);
     }
   };
 
@@ -553,16 +600,6 @@ export const App: React.FC = () => {
           <div className="button-group">
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={handleRegenerate}
-              title="Generate a fresh synthetic person"
-            >
-              <RefreshCw size={14} />
-              Generate New Data
-            </button>
-
-            <button
-              type="button"
               className="btn btn-primary"
               onClick={handleFillPage}
               disabled={isFilling}
@@ -579,6 +616,29 @@ export const App: React.FC = () => {
                 </>
               )}
             </button>
+
+            <div className="button-subgroup">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleRegenerate}
+                title="Generate a fresh synthetic person"
+              >
+                <RefreshCw size={13} />
+                Generate New
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary btn-undo"
+                onClick={handleUndoFill}
+                disabled={isReverting}
+                title="Undo fill and restore pre-fill state or clear (Alt+Shift+U)"
+              >
+                <RotateCcw size={13} className={isReverting ? 'animate-spin' : ''} />
+                {isReverting ? 'Reverting...' : 'Revert Form'}
+              </button>
+            </div>
           </div>
         </>
       ) : (

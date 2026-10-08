@@ -60,12 +60,35 @@ async function executeFillOnActiveTab(regenerate = false) {
   }
 }
 
+async function executeUndoOnActiveTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id || !tab.url || tab.url.startsWith('chrome://')) return;
+
+    chrome.tabs.sendMessage(
+      tab.id,
+      { action: 'UNDO_FILL' },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Nepal Test Filler] Could not send undo to tab:', chrome.runtime.lastError.message);
+        } else {
+          console.log('[Nepal Test Filler] Undo result:', response);
+        }
+      }
+    );
+  } catch (err) {
+    console.error('[Nepal Test Filler] Error in executeUndoOnActiveTab:', err);
+  }
+}
+
 // Commands listener (Keyboard shortcuts)
 chrome.commands?.onCommand?.addListener((command: string) => {
   if (command === 'quick-fill') {
     executeFillOnActiveTab(false);
   } else if (command === 'regenerate-fill') {
     executeFillOnActiveTab(true);
+  } else if (command === 'undo-fill') {
+    executeUndoOnActiveTab();
   }
 });
 
@@ -99,6 +122,11 @@ chrome.runtime.onInstalled.addListener(async (details: chrome.runtime.InstalledD
         title: 'Regenerate & Refill (Alt+Shift+R)',
         contexts: ['editable', 'page'],
       });
+      chrome.contextMenus.create({
+        id: 'nepal-test-filler-undo-fill',
+        title: 'Undo / Revert Form (Alt+Shift+U)',
+        contexts: ['editable', 'page'],
+      });
     });
   }
 });
@@ -108,5 +136,8 @@ chrome.contextMenus?.onClicked?.addListener((info: chrome.contextMenus.OnClickDa
     executeFillOnActiveTab(false);
   } else if (info.menuItemId === 'nepal-test-filler-regenerate-fill') {
     executeFillOnActiveTab(true);
+  } else if (info.menuItemId === 'nepal-test-filler-undo-fill') {
+    executeUndoOnActiveTab();
   }
 });
+

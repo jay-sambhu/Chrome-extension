@@ -68,9 +68,9 @@ This document details upcoming improvements, feature enhancements, and quality-o
 ## 2. ⚡ Form Interaction & DOM Engine (Medium-High Priority)
 
 ### 2.1 Undo / Clear Form Functionality
-- [ ] **Form Snapshot Before Fill**:
+- [x] **Form Snapshot Before Fill**:
   - Capture initial field values before populating test data.
-- [ ] **1-Click "Clear / Revert Form" Button**:
+- [x] **1-Click "Clear / Revert Form" Button**:
   - Add an undo button in the popup and via keyboard shortcut (`Alt+Shift+U`) to clear or restore previous form state.
 
 ### 2.2 Inline Floating Quick-Fill Trigger (Badge)

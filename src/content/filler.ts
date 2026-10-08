@@ -1,10 +1,13 @@
 import {
+  FieldSnapshot,
   FillOptions,
   FillResult,
   FillScript,
+  FormSnapshot,
   PageFieldInspection,
   SupportedFieldType,
   SyntheticPerson,
+  UndoResult,
 } from '../types';
 import { scanFormFields } from './detector';
 import { FieldMappingRule, matchDomainRule } from '../services/domainMapping';
@@ -1059,6 +1062,226 @@ export function inspectPageFields(
   return inspections;
 }
 
+let lastFormSnapshot: FormSnapshot | null = null;
+
+export function getLastSnapshot(): FormSnapshot | null {
+  return lastFormSnapshot;
+}
+
+export function setLastSnapshot(snapshot: FormSnapshot | null): void {
+  lastFormSnapshot = snapshot;
+}
+
+export function clearSnapshot(): void {
+  lastFormSnapshot = null;
+}
+
+/**
+ * Captures an instantaneous snapshot of all active form elements on the page
+ * before any automated data is populated.
+ */
+export function captureFormSnapshot(root: Document | HTMLElement = document): FormSnapshot {
+  const detected = scanFormFields(root);
+  const fields: FieldSnapshot[] = [];
+
+  for (const item of detected) {
+    const elem = item.element;
+    const tagName = elem.tagName.toLowerCase();
+    const inputType = (elem.getAttribute('type') || '').toLowerCase();
+    const role = elem.getAttribute('role') || '';
+
+    if (role === 'checkbox' || role === 'radio') {
+      fields.push({
+        element: elem,
+        type: role === 'checkbox' ? 'aria-checkbox' : 'aria-radio',
+        ariaChecked: elem.getAttribute('aria-checked'),
+      });
+    } else if (tagName === 'input') {
+      const inputElem = elem as HTMLInputElement;
+      if (inputType === 'checkbox' || inputType === 'radio') {
+        fields.push({
+          element: inputElem,
+          type: inputType === 'checkbox' ? 'checkbox' : 'radio',
+          checked: inputElem.checked,
+          value: inputElem.value,
+        });
+      } else {
+        fields.push({
+          element: inputElem,
+          type: 'input',
+          value: inputElem.value,
+        });
+      }
+    } else if (tagName === 'textarea') {
+      fields.push({
+        element: elem,
+        type: 'textarea',
+        value: (elem as HTMLTextAreaElement).value,
+      });
+    } else if (tagName === 'select') {
+      const selectElem = elem as HTMLSelectElement;
+      fields.push({
+        element: selectElem,
+        type: 'select',
+        value: selectElem.value,
+        selectedIndex: selectElem.selectedIndex,
+      });
+    }
+  }
+
+  const snapshot: FormSnapshot = {
+    timestamp: Date.now(),
+    fields,
+  };
+
+  return snapshot;
+}
+
+/**
+ * Reverts the form fields to their pre-fill snapshot state.
+ * If no snapshot exists, clears all interactive form fields on the page.
+ */
+export function revertForm(
+  root: Document | HTMLElement = document,
+  snapshot?: FormSnapshot | null
+): UndoResult {
+  const targetSnapshot = snapshot !== undefined ? snapshot : lastFormSnapshot;
+
+  if (targetSnapshot && targetSnapshot.fields.length > 0) {
+    let revertedCount = 0;
+    const details: NonNullable<UndoResult['details']> = [];
+
+    for (const item of targetSnapshot.fields) {
+      const elem = item.element;
+      if (!elem.isConnected && typeof document !== 'undefined' && !document.contains(elem)) {
+        continue;
+      }
+
+      const identifier = elem.getAttribute('name') || elem.id || elem.getAttribute('aria-label') || 'field';
+
+      if (item.type === 'checkbox' || item.type === 'radio') {
+        const input = elem as HTMLInputElement;
+        const targetChecked = Boolean(item.checked);
+        if (input.checked !== targetChecked) {
+          setNativeChecked(input, targetChecked);
+          revertedCount++;
+          details.push({ field: identifier, restoredValue: targetChecked });
+        }
+      } else if (item.type === 'input' || item.type === 'textarea') {
+        const input = elem as HTMLInputElement | HTMLTextAreaElement;
+        const targetVal = item.value ?? '';
+        if (input.value !== targetVal) {
+          setNativeValue(input, targetVal);
+          revertedCount++;
+          details.push({ field: identifier, restoredValue: targetVal });
+        }
+      } else if (item.type === 'select') {
+        const select = elem as HTMLSelectElement;
+        const targetIdx = item.selectedIndex ?? 0;
+        const targetVal = item.value ?? '';
+        if (select.selectedIndex !== targetIdx || select.value !== targetVal) {
+          if (item.value !== undefined) {
+            setNativeValue(select, targetVal);
+          } else {
+            select.selectedIndex = targetIdx;
+            select.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            select.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+          }
+          revertedCount++;
+          details.push({ field: identifier, restoredValue: targetVal });
+        }
+      } else if (item.type === 'aria-checkbox' || item.type === 'aria-radio') {
+        const prevAriaChecked = item.ariaChecked;
+        const currentAriaChecked = elem.getAttribute('aria-checked');
+        if (currentAriaChecked !== prevAriaChecked) {
+          if (typeof prevAriaChecked === 'string') {
+            elem.setAttribute('aria-checked', prevAriaChecked);
+          } else {
+            elem.removeAttribute('aria-checked');
+          }
+          elem.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+          revertedCount++;
+          details.push({ field: identifier, restoredValue: prevAriaChecked ?? 'none' });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      revertedCount,
+      action: 'reverted',
+      details,
+    };
+  }
+
+  // Fallback: If no snapshot is present, clear/reset all active form fields on root
+  return clearForm(root);
+}
+
+/**
+ * 1-Click Clear Form: Resets all active interactive fields on the page.
+ */
+export function clearForm(root: Document | HTMLElement = document): UndoResult {
+  const detected = scanFormFields(root);
+  let revertedCount = 0;
+  const details: NonNullable<UndoResult['details']> = [];
+
+  for (const item of detected) {
+    const elem = item.element;
+    const tagName = elem.tagName.toLowerCase();
+    const inputType = (elem.getAttribute('type') || '').toLowerCase();
+    const role = elem.getAttribute('role') || '';
+    const identifier = elem.getAttribute('name') || elem.id || 'field';
+
+    if (role === 'checkbox' || role === 'radio') {
+      if (elem.getAttribute('aria-checked') === 'true') {
+        elem.removeAttribute('aria-checked');
+        elem.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+        revertedCount++;
+        details.push({ field: identifier, restoredValue: false });
+      }
+    } else if (tagName === 'input') {
+      const input = elem as HTMLInputElement;
+      if (inputType === 'checkbox' || inputType === 'radio') {
+        if (input.checked) {
+          setNativeChecked(input, false);
+          revertedCount++;
+          details.push({ field: identifier, restoredValue: false });
+        }
+      } else {
+        if (input.value !== '') {
+          setNativeValue(input, '');
+          revertedCount++;
+          details.push({ field: identifier, restoredValue: '' });
+        }
+      }
+    } else if (tagName === 'textarea') {
+      const ta = elem as HTMLTextAreaElement;
+      if (ta.value !== '') {
+        setNativeValue(ta, '');
+        revertedCount++;
+        details.push({ field: identifier, restoredValue: '' });
+      }
+    } else if (tagName === 'select') {
+      const select = elem as HTMLSelectElement;
+      if (select.selectedIndex !== 0 || select.value !== '') {
+        select.selectedIndex = 0;
+        select.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        select.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+        revertedCount++;
+        details.push({ field: identifier, restoredValue: '' });
+      }
+    }
+  }
+
+  return {
+    success: true,
+    revertedCount,
+    action: 'cleared',
+    details,
+  };
+}
+
 /**
  * Fills detected fields on the webpage using the synthetic person and user options.
  * Runs 100% offline using local heuristic rule engine and domain-specific rules.
@@ -1069,6 +1292,9 @@ export function fillPage(
   root: Document | HTMLElement = document,
   domainRules: FieldMappingRule[] = []
 ): FillResult {
+  // Capture initial snapshot before populating test data
+  lastFormSnapshot = captureFormSnapshot(root);
+
   const detected = scanFormFields(root);
   const details: FillResult['details'] = [];
   let fieldsFilledCount = 0;
@@ -1117,6 +1343,9 @@ export async function fillPageAsync(
   root: Document | HTMLElement = document,
   domainRules: FieldMappingRule[] = []
 ): Promise<FillResult> {
+  // Capture initial snapshot before populating test data
+  lastFormSnapshot = captureFormSnapshot(root);
+
   const detected = scanFormFields(root);
   const details: FillResult['details'] = [];
   let fieldsFilledCount = 0;

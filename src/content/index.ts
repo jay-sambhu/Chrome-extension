@@ -1,10 +1,69 @@
 import { scanFormFields } from './detector';
-import { fillPageAsync, inspectPageFields } from './filler';
+import { clearForm, fillPageAsync, inspectPageFields, revertForm } from './filler';
 import { ExtensionMessage, GeminiConfig } from '../types';
 import { classifyUnknownField } from '../services/geminiClassifier';
 import { getDomainMapping } from '../services/domainMapping';
 
 console.log('[Nepal Test Filler] Content script active.');
+
+function showInPageFeedback(text: string) {
+  if (typeof document === 'undefined' || !document.body) return;
+  const id = '__nepal_filler_toast';
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = id;
+  toast.textContent = `🇳🇵 ${text}`;
+  Object.assign(toast.style, {
+    position: 'fixed',
+    bottom: '24px',
+    right: '24px',
+    zIndex: '2147483647',
+    backgroundColor: '#0f172a',
+    color: '#f8fafc',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    pointerEvents: 'none',
+    transition: 'opacity 0.3s ease, transform 0.3s ease',
+    opacity: '0',
+    transform: 'translateY(8px)',
+  });
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+  });
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 350);
+  }, 2500);
+}
+
+// In-page keyboard shortcut for Alt+Shift+U (Undo / Clear Form)
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.altKey && e.shiftKey && (e.key === 'U' || e.key === 'u' || e.code === 'KeyU')) {
+      e.preventDefault();
+      try {
+        const result = revertForm(document);
+        console.log(`[Nepal Test Filler] Alt+Shift+U triggered: ${result.action} ${result.revertedCount} fields.`);
+        showInPageFeedback(
+          result.action === 'reverted'
+            ? `Reverted ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
+            : `Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
+        );
+      } catch (err) {
+        console.error('[Nepal Test Filler] Shortcut undo error:', err);
+      }
+    }
+  });
+}
 
 chrome.runtime.onMessage.addListener(
   (
@@ -67,6 +126,34 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (message.action === 'UNDO_FILL') {
+      try {
+        const result = revertForm(document);
+        showInPageFeedback(
+          result.action === 'reverted'
+            ? `Reverted ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
+            : `Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
+        );
+        sendResponse({ status: 'ok', result });
+      } catch (err) {
+        console.error('[Nepal Test Filler] Undo error:', err);
+        sendResponse({ status: 'error', message: String(err) });
+      }
+      return false;
+    }
+
+    if (message.action === 'CLEAR_FORM') {
+      try {
+        const result = clearForm(document);
+        showInPageFeedback(`Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`);
+        sendResponse({ status: 'ok', result });
+      } catch (err) {
+        console.error('[Nepal Test Filler] Clear error:', err);
+        sendResponse({ status: 'error', message: String(err) });
+      }
+      return false;
+    }
+
     if (message.action === 'FILL_PAGE') {
       (async () => {
         try {
@@ -107,4 +194,5 @@ chrome.runtime.onMessage.addListener(
     return false;
   }
 );
+
 

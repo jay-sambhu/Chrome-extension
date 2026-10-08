@@ -45,6 +45,13 @@ export default defineManifest(() => ({
       },
       description: 'Regenerate synthetic person and refill form',
     },
+    'undo-fill': {
+      suggested_key: {
+        default: 'Alt+Shift+U',
+        mac: 'Alt+Shift+U',
+      },
+      description: 'Undo fill or revert form to pre-fill state',
+    },
   },
   options_ui: {
     page: 'src/options/index.html',
