@@ -52,6 +52,7 @@ export function App() {
     address: true,
     professional: true,
   });
+  const [enableFloatingBadge, setEnableFloatingBadge] = useState<boolean>(true);
 
   // AI settings
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -86,6 +87,7 @@ export function App() {
         'fillCategories',
         'aiEnabled',
         'geminiApiKey',
+        'enableFloatingBadge',
       ])) as Record<string, any>;
 
       if (data.selectedProfile) {
@@ -97,6 +99,9 @@ export function App() {
       }
       if (data.fillCategories) {
         setFillCategories(data.fillCategories);
+      }
+      if (data.enableFloatingBadge !== undefined) {
+        setEnableFloatingBadge(Boolean(data.enableFloatingBadge));
       }
       if (data.aiEnabled !== undefined) {
         setAiEnabled(Boolean(data.aiEnabled));
@@ -123,6 +128,7 @@ export function App() {
         selectedProfile: defaultProfile,
         fillScript: defaultScript,
         fillCategories,
+        enableFloatingBadge,
       });
       showToast('General preferences saved successfully!');
     }
@@ -161,6 +167,7 @@ export function App() {
       exportedAt: new Date().toISOString(),
       defaultProfile,
       fillCategories,
+      enableFloatingBadge,
       aiEnabled,
       domainMappings: allMappings,
     };
@@ -187,12 +194,14 @@ export function App() {
 
         if (parsed.defaultProfile) setDefaultProfile(parsed.defaultProfile);
         if (parsed.fillCategories) setFillCategories(parsed.fillCategories);
+        if (parsed.enableFloatingBadge !== undefined) setEnableFloatingBadge(Boolean(parsed.enableFloatingBadge));
         if (parsed.aiEnabled !== undefined) setAiEnabled(parsed.aiEnabled);
 
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
           await chrome.storage.local.set({
             selectedProfile: parsed.defaultProfile || defaultProfile,
             fillCategories: parsed.fillCategories || fillCategories,
+            enableFloatingBadge: parsed.enableFloatingBadge !== undefined ? parsed.enableFloatingBadge : enableFloatingBadge,
             aiEnabled: parsed.aiEnabled !== undefined ? parsed.aiEnabled : aiEnabled,
           });
 
@@ -315,6 +324,23 @@ export function App() {
                     <span>{cat.charAt(0).toUpperCase() + cat.slice(1)} Information</span>
                   </label>
                 ))}
+              </div>
+
+              <div className="section-divider" />
+
+              <h3>Inline Quick Fill Trigger</h3>
+              <div className="setting-card">
+                <label className="switch-label">
+                  <input
+                    type="checkbox"
+                    checked={enableFloatingBadge}
+                    onChange={(e) => setEnableFloatingBadge(e.target.checked)}
+                  />
+                  <span><strong>Enable Inline Floating Badge (🇳🇵) on Form Fields</strong></span>
+                </label>
+                <p className="help-text">
+                  Displays a discreet 1-click floating icon beside focused or hovered form inputs to quickly fill the form, fill a single field, or undo without opening the popup.
+                </p>
               </div>
 
               <div className="section-divider" />
@@ -567,6 +593,26 @@ export function App() {
                 <div className="shortcut-info">
                   <h4>Regenerate & Refill Active Tab</h4>
                   <p>Generates a brand-new synthetic Nepali citizen profile and re-fills the active form immediately.</p>
+                </div>
+              </div>
+
+              <div className="shortcut-card">
+                <div className="shortcut-keys">
+                  <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>U</kbd>
+                </div>
+                <div className="shortcut-info">
+                  <h4>Undo / Revert Form Fields</h4>
+                  <p>Restores previously filled inputs back to their initial original values or clears them.</p>
+                </div>
+              </div>
+
+              <div className="shortcut-card">
+                <div className="shortcut-keys">
+                  <span style={{ fontSize: '18px' }}>🇳🇵</span>
+                </div>
+                <div className="shortcut-info">
+                  <h4>In-Field Floating Badge</h4>
+                  <p>Click the discreet floating flag icon inside any focused or hovered form field to fill the whole form, populate that field only, or undo.</p>
                 </div>
               </div>
 

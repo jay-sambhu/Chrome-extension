@@ -74,11 +74,11 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Add an undo button in the popup and via keyboard shortcut (`Alt+Shift+U`) to clear or restore previous form state.
 
 ### 2.2 Inline Floating Quick-Fill Trigger (Badge)
-- [ ] **Discreet Field Badge**:
+- [x] **Discreet Field Badge**:
   - Optional discreet floating icon displayed beside detected forms/inputs (similar to 1Password / Bitwarden).
-- [ ] **1-Click Fill Without Opening Popup**:
+- [x] **1-Click Fill Without Opening Popup**:
   - Clicking the badge instantly fills the target input or entire form with synthetic data.
-- [ ] **User Setting to Enable/Disable**:
+- [x] **User Setting to Enable/Disable**:
   - Configurable in Options page so developers can turn it off if preferred.
 
 ### 2.3 Multi-Step Wizard & SPA Persistence

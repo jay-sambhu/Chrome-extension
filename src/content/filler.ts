@@ -9,7 +9,7 @@ import {
   SyntheticPerson,
   UndoResult,
 } from '../types';
-import { scanFormFields } from './detector';
+import { detectFieldType, scanFormFields } from './detector';
 import { FieldMappingRule, matchDomainRule } from '../services/domainMapping';
 import {
   BS_MONTHS,
@@ -1444,3 +1444,35 @@ export async function fillPageAsync(
     details,
   };
 }
+
+/**
+ * Fills a single DOM element using synthetic person data and options.
+ */
+export function fillSingleField(
+  element: HTMLElement,
+  person: SyntheticPerson,
+  options?: Partial<FillOptions>,
+  domainRules: FieldMappingRule[] = []
+): boolean {
+  if (!lastFormSnapshot) {
+    lastFormSnapshot = captureFormSnapshot(element.closest('form') || element.ownerDocument || document);
+  }
+
+  const rule = matchDomainRule(element, domainRules);
+  const detected = detectFieldType(element);
+  const resolvedType = rule ? rule.targetType : detected.type;
+
+  const targetScript = detected.script || options?.fillScript || options?.script || 'en';
+  const details: FillResult['details'] = [];
+
+  return fillFieldElement(
+    element,
+    resolvedType,
+    person,
+    element.getAttribute('name') || element.id,
+    details,
+    targetScript,
+    detected.addressScope
+  );
+}
+

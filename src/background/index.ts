@@ -106,6 +106,7 @@ chrome.runtime.onInstalled.addListener(async (details: chrome.runtime.InstalledD
         professional: true,
       },
       aiEnabled: false,
+      enableFloatingBadge: true,
     });
   }
 

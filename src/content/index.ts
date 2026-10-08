@@ -3,8 +3,14 @@ import { clearForm, fillPageAsync, inspectPageFields, revertForm } from './fille
 import { ExtensionMessage, GeminiConfig } from '../types';
 import { classifyUnknownField } from '../services/geminiClassifier';
 import { getDomainMapping } from '../services/domainMapping';
+import { initFloatingBadge } from './floatingBadge';
 
 console.log('[Nepal Test Filler] Content script active.');
+
+// Initialize inline floating badge
+if (typeof document !== 'undefined') {
+  initFloatingBadge(document);
+}
 
 function showInPageFeedback(text: string) {
   if (typeof document === 'undefined' || !document.body) return;
