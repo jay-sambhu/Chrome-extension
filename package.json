@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Chrome extension to automatically fill web forms with realistic synthetic Nepal-focused test data",
   "scripts": {
+    "start": "vite",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
