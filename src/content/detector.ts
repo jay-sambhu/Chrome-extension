@@ -105,6 +105,16 @@ const PATTERN_RULES: MatchRule[] = [
     regex: /(?:\b(pan\s*(no|number|num)?|sthayi\s*lekha)\b|स्थायी\s*लेखा|प्यान)/i,
     baseConfidence: 0.95,
   },
+  {
+    type: 'citizenshipNumber',
+    regex: /(?:\b(citizenship\s*(no|number|num)?|nagrikta\s*(no|num|number)?)\b|नागरिकता\s*नं|नागरिकता\s*नम्बर)/i,
+    baseConfidence: 0.96,
+  },
+  {
+    type: 'nationalId',
+    regex: /(?:\b(national\s*id|nid\s*(no|num|number)?|rastriya\s*parichayapatra)\b|राष्ट्रिय\s*परिचयपत्र\s*नं)/i,
+    baseConfidence: 0.96,
+  },
 
   // 4. Telephone / Landline
   {
@@ -142,21 +152,51 @@ const PATTERN_RULES: MatchRule[] = [
     baseConfidence: 0.92,
   },
   {
-    type: 'subject',
-    regex: /(?:\b(subject|faculty|discipline|vishaya|shankaay)\b|विषय|संकाय)/i,
+    type: 'faculty',
+    regex: /(?:\b(faculty|stream|academic\s*stream|shankaay)\b|संकाय|अध्ययन\s*संकाय)/i,
+    baseConfidence: 0.93,
+  },
+  {
+    type: 'grade',
+    regex: /(?:\b(grade|class|level|semester|standard|kaksha|taha|shreni)\b|कक्षा|तह|श्रेणी|सेमेस्टर)/i,
     baseConfidence: 0.92,
   },
+  {
+    type: 'subject',
+    regex: /(?:\b(subject|discipline|course|vishaya)\b|विषय)/i,
+    baseConfidence: 0.91,
+  },
 
-  // 7. Corporate & Employment
+  // 7. Corporate, Employment & Agriculture
   {
     type: 'employeeId',
     regex: /(?:\b(employee\s*id|emp\s*id|staff\s*id|badge\s*no)\b|कर्मचारी\s*परिचयपत्र|कर्मचारी\s*नं)/i,
     baseConfidence: 0.94,
   },
   {
+    type: 'salary',
+    regex: /(?:\b(salary|income|remuneration|pay|ctc|wages|talab|aamdani|aaya)\b|तलब|मासिक\s*तलब|आम्दानी|पारिश्रमिक|आयस्रोत)/i,
+    baseConfidence: 0.94,
+  },
+  {
     type: 'businessName',
     regex: /(?:\b(business\s*name|firm\s*name|enterprise|byawasaya\s*naam)\b|व्यवसाय(को)?\s*नाम|फर्मको\s*नाम)/i,
     baseConfidence: 0.93,
+  },
+  {
+    type: 'businessType',
+    regex: /(?:\b(business\s*type|firm\s*type|registration\s*type|entity\s*type)\b|व्यवसायको\s*प्रकार|फर्मको\s*प्रकार)/i,
+    baseConfidence: 0.93,
+  },
+  {
+    type: 'cooperative',
+    regex: /(?:\b(cooperative|co\s*operative|sahakari)\b|सहकारी|कृषि\s*सहकारी)/i,
+    baseConfidence: 0.93,
+  },
+  {
+    type: 'cropType',
+    regex: /(?:\b(crop|crop\s*type|crop\s*name|produce|baali|fasal)\b|बाली|मुख्य\s*बाली|फसल|उत्पादन)/i,
+    baseConfidence: 0.92,
   },
   {
     type: 'designation',
@@ -179,7 +219,12 @@ const PATTERN_RULES: MatchRule[] = [
     baseConfidence: 0.91,
   },
 
-  // 8. Date of Birth & Age
+  // 8. Date of Birth (BS & AD) & Age
+  {
+    type: 'dateOfBirthBS',
+    regex: /(?:\b(dob\s*bs|birth\s*date\s*bs|bs\s*dob|janma\s*miti\s*bs)\b|जन्म\s*मिति\s*\(?वि\.?\s*सं\.?\)?|वि\.?\s*सं\.?\s*जन्म\s*मिति)/i,
+    baseConfidence: 0.98,
+  },
   {
     type: 'dateOfBirth',
     regex: /(?:\b(dob|birth\s*date|date\s*of\s*birth|birth\s*day|janma\s*miti|janma\s*darta)\b|जन्म\s*मिति|जन्ममिति)/i,
