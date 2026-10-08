@@ -43,6 +43,7 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [isFilling, setIsFilling] = useState(false);
   const [isReverting, setIsReverting] = useState(false);
+  const [isSessionSynced, setIsSessionSynced] = useState(false);
 
   // Tab State: 'fill' | 'mappings'
   const [activeTab, setActiveTab] = useState<'fill' | 'mappings'>('fill');
@@ -79,6 +80,26 @@ export const App: React.FC = () => {
           if (res.geminiModel) setGeminiModel(res.geminiModel);
         }
       );
+    }
+
+    // Query active tab to check if a persona was retained across multi-step wizard
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (tab && tab.id) {
+          chrome.tabs.sendMessage(tab.id, { action: 'GET_SESSION_PERSONA' }, (res) => {
+            if (!chrome.runtime.lastError && res?.status === 'ok' && res.person) {
+              setPerson(res.person);
+              setIsSessionSynced(true);
+              if (res.person.profileType) setProfile(res.person.profileType);
+              if (res.options) {
+                if (res.options.fillScript) setScript(res.options.fillScript);
+                if (res.options.fillCategories) setCategories(res.options.fillCategories);
+              }
+            }
+          });
+        }
+      });
     }
 
     getCacheStats().then((stats) => setCacheCount(stats.count));
@@ -195,7 +216,21 @@ export const App: React.FC = () => {
   const handleRegenerate = () => {
     const newPerson = generateSyntheticPerson(profile);
     setPerson(newPerson);
+    setIsSessionSynced(false);
     setStatus(null);
+
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (tab && tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'SET_SESSION_PERSONA',
+            person: newPerson,
+            options: { profile, fillScript: script, fillCategories: categories },
+          });
+        }
+      });
+    }
   };
 
 
@@ -266,6 +301,7 @@ export const App: React.FC = () => {
 
         if (response.status === 'ok') {
           const count = response.result?.fieldsFilledCount ?? 0;
+          setIsSessionSynced(true);
           setStatus({
             type: 'success',
             message: `Successfully filled ${count} field${count === 1 ? '' : 's'}!`,
@@ -551,6 +587,11 @@ export const App: React.FC = () => {
                 {person.profileType.toUpperCase()} •{' '}
                 {script === 'np' && person.devanagari ? person.devanagari.gender : person.gender},{' '}
                 {person.age}y
+                {isSessionSynced && (
+                  <span className="session-synced-badge" title="Retained across wizard steps in this browser tab">
+                    🔗 Wizard Retained
+                  </span>
+                )}
               </div>
             </div>
 

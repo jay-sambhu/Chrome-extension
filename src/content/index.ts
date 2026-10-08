@@ -4,6 +4,13 @@ import { ExtensionMessage, GeminiConfig } from '../types';
 import { classifyUnknownField } from '../services/geminiClassifier';
 import { getDomainMapping } from '../services/domainMapping';
 import { initFloatingBadge } from './floatingBadge';
+import {
+  getSessionPersona,
+  setSessionPersona,
+  clearSessionPersona,
+  getSessionOptions,
+  setSessionOptions,
+} from '../services/sessionPersona';
 
 console.log('[Nepal Test Filler] Content script active.');
 
@@ -160,9 +167,50 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
+    if (message.action === 'GET_SESSION_PERSONA') {
+      try {
+        const person = getSessionPersona();
+        const options = getSessionOptions();
+        sendResponse({ status: 'ok', person, options });
+      } catch (err) {
+        sendResponse({ status: 'error', message: String(err) });
+      }
+      return false;
+    }
+
+    if (message.action === 'SET_SESSION_PERSONA') {
+      try {
+        setSessionPersona(message.person);
+        if (message.options) {
+          setSessionOptions(message.options);
+        }
+        sendResponse({ status: 'ok' });
+      } catch (err) {
+        sendResponse({ status: 'error', message: String(err) });
+      }
+      return false;
+    }
+
+    if (message.action === 'CLEAR_SESSION_PERSONA') {
+      try {
+        clearSessionPersona();
+        sendResponse({ status: 'ok' });
+      } catch (err) {
+        sendResponse({ status: 'error', message: String(err) });
+      }
+      return false;
+    }
+
     if (message.action === 'FILL_PAGE') {
       (async () => {
         try {
+          // Persist this active persona in sessionStorage for multi-step wizards / SPA persistence
+          if (message.person) {
+            setSessionPersona(message.person);
+          }
+          if (message.options) {
+            setSessionOptions(message.options);
+          }
           const domain = window.location.hostname || 'localhost';
           const domainConfig = await getDomainMapping(domain);
 

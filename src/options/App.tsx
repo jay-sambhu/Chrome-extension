@@ -53,6 +53,7 @@ export function App() {
     professional: true,
   });
   const [enableFloatingBadge, setEnableFloatingBadge] = useState<boolean>(true);
+  const [enableSessionPersistence, setEnableSessionPersistence] = useState<boolean>(true);
 
   // AI settings
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -88,6 +89,7 @@ export function App() {
         'aiEnabled',
         'geminiApiKey',
         'enableFloatingBadge',
+        'enableSessionPersistence',
       ])) as Record<string, any>;
 
       if (data.selectedProfile) {
@@ -102,6 +104,9 @@ export function App() {
       }
       if (data.enableFloatingBadge !== undefined) {
         setEnableFloatingBadge(Boolean(data.enableFloatingBadge));
+      }
+      if (data.enableSessionPersistence !== undefined) {
+        setEnableSessionPersistence(Boolean(data.enableSessionPersistence));
       }
       if (data.aiEnabled !== undefined) {
         setAiEnabled(Boolean(data.aiEnabled));
@@ -129,6 +134,7 @@ export function App() {
         fillScript: defaultScript,
         fillCategories,
         enableFloatingBadge,
+        enableSessionPersistence,
       });
       showToast('General preferences saved successfully!');
     }
@@ -168,6 +174,7 @@ export function App() {
       defaultProfile,
       fillCategories,
       enableFloatingBadge,
+      enableSessionPersistence,
       aiEnabled,
       domainMappings: allMappings,
     };
@@ -195,6 +202,7 @@ export function App() {
         if (parsed.defaultProfile) setDefaultProfile(parsed.defaultProfile);
         if (parsed.fillCategories) setFillCategories(parsed.fillCategories);
         if (parsed.enableFloatingBadge !== undefined) setEnableFloatingBadge(Boolean(parsed.enableFloatingBadge));
+        if (parsed.enableSessionPersistence !== undefined) setEnableSessionPersistence(Boolean(parsed.enableSessionPersistence));
         if (parsed.aiEnabled !== undefined) setAiEnabled(parsed.aiEnabled);
 
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -202,6 +210,7 @@ export function App() {
             selectedProfile: parsed.defaultProfile || defaultProfile,
             fillCategories: parsed.fillCategories || fillCategories,
             enableFloatingBadge: parsed.enableFloatingBadge !== undefined ? parsed.enableFloatingBadge : enableFloatingBadge,
+            enableSessionPersistence: parsed.enableSessionPersistence !== undefined ? parsed.enableSessionPersistence : enableSessionPersistence,
             aiEnabled: parsed.aiEnabled !== undefined ? parsed.aiEnabled : aiEnabled,
           });
 
@@ -340,6 +349,23 @@ export function App() {
                 </label>
                 <p className="help-text">
                   Displays a discreet 1-click floating icon beside focused or hovered form inputs to quickly fill the form, fill a single field, or undo without opening the popup.
+                </p>
+              </div>
+
+              <div className="section-divider" />
+
+              <h3>Multi-Step Wizard & SPA Persistence</h3>
+              <div className="setting-card">
+                <label className="switch-label">
+                  <input
+                    type="checkbox"
+                    checked={enableSessionPersistence}
+                    onChange={(e) => setEnableSessionPersistence(e.target.checked)}
+                  />
+                  <span><strong>Retain Persona Across Multi-Step Forms & SPA (Session Storage)</strong></span>
+                </label>
+                <p className="help-text">
+                  Keeps the same synthetic citizen in tab memory across multi-step forms (Step 1: Personal → Step 2: Address → Step 3: Education) instead of generating new random individuals on each page.
                 </p>
               </div>
 

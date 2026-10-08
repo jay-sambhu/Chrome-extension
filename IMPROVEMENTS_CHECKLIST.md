@@ -82,7 +82,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Configurable in Options page so developers can turn it off if preferred.
 
 ### 2.3 Multi-Step Wizard & SPA Persistence
-- [ ] **Session Persona Retention**:
+- [x] **Session Persona Retention**:
   - Save the currently active synthetic person in `sessionStorage` per browser tab.
   - Multi-step application wizards (Step 1: Personal -> Step 2: Address -> Step 3: Education) will retain the exact same persona instead of generating new random individuals on every page.
 

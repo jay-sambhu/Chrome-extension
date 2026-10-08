@@ -5,6 +5,18 @@ console.log('[Nepal Test Filler] Service worker initialized.');
 
 let cachedPerson: SyntheticPerson | null = null;
 
+function getTabSessionPersona(tabId: number): Promise<SyntheticPerson | null> {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, { action: 'GET_SESSION_PERSONA' }, (res) => {
+      if (chrome.runtime.lastError || !res || res.status !== 'ok' || !res.person) {
+        resolve(null);
+      } else {
+        resolve(res.person as SyntheticPerson);
+      }
+    });
+  });
+}
+
 async function executeFillOnActiveTab(regenerate = false) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -28,9 +40,17 @@ async function executeFillOnActiveTab(regenerate = false) {
     };
     const enableAiClassification = Boolean(data.aiEnabled);
 
-    if (regenerate || !cachedPerson) {
-      cachedPerson = generateSyntheticPerson(profile);
-      await chrome.storage.local.set({ lastGeneratedPerson: cachedPerson });
+    let personToFill: SyntheticPerson | null = null;
+    if (!regenerate) {
+      personToFill = await getTabSessionPersona(tab.id);
+    }
+
+    if (!personToFill) {
+      if (regenerate || !cachedPerson) {
+        cachedPerson = generateSyntheticPerson(profile);
+        await chrome.storage.local.set({ lastGeneratedPerson: cachedPerson });
+      }
+      personToFill = cachedPerson;
     }
 
     const options: FillOptions = {
@@ -44,7 +64,7 @@ async function executeFillOnActiveTab(regenerate = false) {
       tab.id,
       {
         action: 'FILL_PAGE',
-        person: cachedPerson,
+        person: personToFill,
         options,
       },
       (response) => {
@@ -107,6 +127,7 @@ chrome.runtime.onInstalled.addListener(async (details: chrome.runtime.InstalledD
       },
       aiEnabled: false,
       enableFloatingBadge: true,
+      enableSessionPersistence: true,
     });
   }
 

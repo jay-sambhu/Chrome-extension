@@ -1,6 +1,12 @@
 import { generateSyntheticPerson } from '../generator/personGenerator';
 import { fillPage, fillSingleField, revertForm } from './filler';
 import { FillOptions, ProfileType, SyntheticPerson } from '../types';
+import {
+  getSessionPersona,
+  setSessionPersona,
+  getSessionOptions,
+  setSessionOptions,
+} from '../services/sessionPersona';
 
 let isBadgeEnabled = true;
 let activeTargetElement: HTMLElement | null = null;
@@ -43,6 +49,10 @@ function isFillableField(element: Element | null): element is HTMLElement {
  * Retrieves the user's stored preferences or provides realistic defaults.
  */
 async function getStoredOptions(): Promise<{ options: FillOptions; person: SyntheticPerson }> {
+  // Check if this tab session already has an active retained persona (e.g. from prior wizard steps)
+  const retainedPerson = getSessionPersona();
+  const retainedOptions = getSessionOptions();
+
   let profile: ProfileType = 'general';
   let fillScript: 'en' | 'np' = 'en';
   let fillCategories = { personal: true, contact: true, address: true, professional: true };
@@ -60,7 +70,17 @@ async function getStoredOptions(): Promise<{ options: FillOptions; person: Synth
       if (data.fillScript === 'en' || data.fillScript === 'np') fillScript = data.fillScript;
       if (data.fillCategories) fillCategories = data.fillCategories;
 
+      if (retainedPerson) {
+        return {
+          options: retainedOptions || { profile, fillScript, fillCategories },
+          person: retainedPerson,
+        };
+      }
+
       const person = data.lastGeneratedPerson || generateSyntheticPerson(profile);
+      setSessionPersona(person);
+      setSessionOptions({ profile, fillScript, fillCategories });
+
       return {
         options: { profile, fillScript, fillCategories },
         person,
@@ -70,9 +90,20 @@ async function getStoredOptions(): Promise<{ options: FillOptions; person: Synth
     }
   }
 
+  if (retainedPerson) {
+    return {
+      options: retainedOptions || { profile, fillScript, fillCategories },
+      person: retainedPerson,
+    };
+  }
+
+  const generated = generateSyntheticPerson(profile);
+  setSessionPersona(generated);
+  setSessionOptions({ profile, fillScript, fillCategories });
+
   return {
     options: { profile, fillScript, fillCategories },
-    person: generateSyntheticPerson(profile),
+    person: generated,
   };
 }
 

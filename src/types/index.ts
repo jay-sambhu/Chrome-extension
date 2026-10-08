@@ -375,6 +375,9 @@ export type ExtensionMessage =
   | { action: 'UNDO_FILL' }
   | { action: 'CLEAR_FORM' }
   | { action: 'GET_LAST_GENERATED_PERSON' }
+  | { action: 'GET_SESSION_PERSONA' }
+  | { action: 'SET_SESSION_PERSONA'; person: SyntheticPerson; options?: FillOptions }
+  | { action: 'CLEAR_SESSION_PERSONA' }
   | { action: 'CLASSIFY_FIELD'; payload: FieldClassificationPayload }
   | { action: 'PING' };
 
