@@ -105,28 +105,30 @@ Logically unified, internally consistent personas with support for 6 archetypes.
 
 ---
 
-## ⏳ Phase 4 — Advanced Field Detection
+## ✅ Phase 4 — Advanced Field Detection (Completed)
 
 Significantly improve the rule-based detection engine to achieve near-100% accuracy on real-world Nepali and international web forms.
 
-- [ ] **Multi-Signal Scoring System**:
-  - [ ] Weighted scoring across:
+- [x] **Multi-Signal Scoring System**:
+  - [x] Weighted scoring across:
     1. Input `type` and `autocomplete` attributes.
     2. Explicit `<label for="...">` and wrapping `<label>`.
     3. Input `name` and `id` tokens.
     4. Input `placeholder` text.
     5. Accessibility attributes (`aria-label`, `aria-labelledby`, `aria-describedby`).
     6. Neighboring DOM sibling text and parent container headers.
-- [ ] **Romanized Nepali Vocabulary Support**:
-  - [ ] Names: `naam`, `pehelo naam`, `bichko naam`, `thar`.
-  - [ ] Address: `thegana`, `jilla`, `pradesh`, `nagar palika`, `gau palika`, `wada`, `tole`, `chowk`.
-  - [ ] Identity: `nagrikta`, `rastriya parichayapatra`, `pan`, `janma darta`.
-  - [ ] Contact: `phone`, `samparka`, `chalbhasa`, `patralaya`.
-  - [ ] Professional: `pesha`, `karyalaya`, `sanstha`, `pad`.
-- [ ] **Composite Form Layout Detection**:
-  - [ ] Detection of split address fields (separate Province dropdown, District dropdown, Municipality dropdown, Ward input).
-  - [ ] Detection of split name inputs (First Name + Last Name vs. Single Full Name).
-  - [ ] Support for non-standard form layouts (tables, floating label frameworks, Material UI, Tailwind forms).
+- [x] **Romanized Nepali & Devanagari Vocabulary Support**:
+  - [x] Names: `naam`, `pehelo naam`, `bichko naam`, `thar` / `पहिलो नाम`, `थर`.
+  - [x] Address: `thegana`, `jilla`, `pradesh`, `nagar palika`, `gau palika`, `wada`, `tole`, `chowk` / `ठेगाना`, `जिल्ला`, `प्रदेश`, `वडा`.
+  - [x] Identity: `nagrikta`, `rastriya parichayapatra`, `pan`, `janma darta` / `नागरिकता`, `प्यान`.
+  - [x] Contact: `phone`, `samparka`, `chalbhasa`, `patralaya` / `सम्पर्क`, `मोबाइल`.
+  - [x] Professional: `pesha`, `karyalaya`, `sanstha`, `pad` / `पेशा`, `संस्था`.
+- [x] **Composite Form Layout Detection**:
+  - [x] Detection of split address fields (separate Province dropdown, District dropdown, Municipality dropdown, Ward input).
+  - [x] Detection of split name inputs (First Name + Last Name vs. Single Full Name).
+  - [x] Support for non-standard form layouts (tables, floating label frameworks, Material UI, Tailwind forms).
+- [x] **Comprehensive Test Suite**:
+  - [x] 9 targeted test cases in `tests/detector.test.ts` covering multi-signal weighting, autocomplete priority, Devanagari labels, Romanized tokens, and aria labels.
 
 ---
 
