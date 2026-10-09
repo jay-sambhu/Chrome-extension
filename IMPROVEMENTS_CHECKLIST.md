@@ -136,7 +136,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Serve locally via Vite for testing and rapid QA validation.
 
 ### 5.2 GitHub Actions CI Pipeline
-- [ ] **Automated CI Workflow (`.github/workflows/ci.yml`)**:
+- [x] **Automated CI Workflow (`.github/workflows/ci.yml`)**:
   - Run `npm run typecheck`, `npm run build`, and `npm test` on every push and pull request.
 
 ### 5.3 Chrome Web Store Marketing Assets
