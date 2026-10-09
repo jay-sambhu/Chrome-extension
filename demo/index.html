@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nepal Test Filler — Interactive QA Test Bench</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22><text y=%2226%22 font-size=%2226%22>🇳🇵</text></svg>">
+  <style>
+    :root {
+      --bg-color: #0b1120;
+      --card-bg: #131d31;
+      --card-hover: #1e293b;
+      --border-color: #24344d;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #dc143c;
+      --primary-hover: #b01030;
+      --accent-blue: #0284c7;
+      --accent-green: #10b981;
+      --input-bg: #0b1322;
+      --input-border: #334155;
+      --input-focus: #38bdf8;
+      --radius: 8px;
+    }
+
+    [data-theme="light"] {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --card-hover: #f1f5f9;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --input-bg: #f8fafc;
+      --input-border: #cbd5e1;
+      --input-focus: #0284c7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, rgba(220, 20, 60, 0.15) 0%, rgba(2, 132, 199, 0.15) 100%);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px 32px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .brand-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-flag {
+      font-size: 40px;
+      line-height: 1;
+    }
+
+    .brand-title {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .theme-toggle-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent-blue);
+    }
+
+    .shortcut-badge {
+      background: rgba(220, 20, 60, 0.2);
+      border: 1px solid rgba(220, 20, 60, 0.4);
+      color: #ff6b81;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    kbd {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Live Counter Banner */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+
+    .status-counters {
+      display: flex;
+      gap: 20px;
+    }
+
+    .counter-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .counter-item strong {
+      color: var(--accent-blue);
+    }
+
+    /* Nav Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius) var(--radius) 0 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: rgba(220, 20, 60, 0.08);
+    }
+
+    /* Form Card Container */
+    .form-panel {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 32px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .form-panel.active {
+      display: block;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .panel-header h2 {
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-header p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .panel-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-reset {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-reset:hover {
+      color: #ef4444;
+      border-color: #ef4444;
+    }
+
+    /* Form Layout Grids */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .grid-full {
+      grid-column: 1 / -1;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .form-group label span.nepali-tag {
+      color: #38bdf8;
+      font-weight: normal;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      background-color: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text-main);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--input-focus);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .radio-group,
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 8px 0;
+    }
+
+    .radio-label,
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .radio-label input,
+    .checkbox-label input {
+      width: auto;
+      accent-color: var(--primary);
+    }
+
+    /* Section Subheaders */
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 12px;
+      margin-bottom: 4px;
+      border-bottom: 1px dashed var(--border-color);
+      padding-bottom: 6px;
+    }
+
+    /* Multi-step Wizard Styles */
+    .wizard-steps-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .wizard-step-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      z-index: 1;
+      background: var(--card-bg);
+      padding: 0 8px;
+    }
+
+    .wizard-step-node.active {
+      color: var(--primary);
+    }
+
+    .step-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .wizard-step-node.active .step-circle {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .wizard-body {
+      min-height: 220px;
+    }
+
+    .wizard-controls {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 24px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 16px;
+    }
+
+    .btn-wizard {
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-prev {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .btn-prev:hover {
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+
+    .btn-next {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-next:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Custom Web Components & ARIA Box */
+    .custom-control-box {
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Notification Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #10b981;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header Banner -->
+    <header class="header-banner">
+      <div class="brand-title-wrap">
+        <span class="brand-flag" role="img" aria-label="Nepal Flag">🇳🇵</span>
+        <div>
+          <h1 class="brand-title">Nepal Test Filler — QA Test Bench</h1>
+          <p class="brand-subtitle">Simulated Nepali Web Forms for 1-Click Form Filling & Validation</p>
+        </div>
+      </div>
+      <div class="banner-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" type="button">
+          <span id="themeIcon">☀️</span> <span id="themeText">Toggle Theme</span>
+        </button>
+        <div class="shortcut-badge">
+          <span>Fill:</span> <kbd>Alt+Shift+F</kbd>
+          <span style="margin-left: 4px;">Undo:</span> <kbd>Alt+Shift+U</kbd>
+        </div>
+      </div>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-counters">
+        <div class="counter-item">
+          <span>Total Inputs:</span> <strong id="totalInputCount">0</strong>
+        </div>
+        <div class="counter-item">
+          <span>Filled:</span> <strong id="filledInputCount" style="color: var(--accent-green);">0</strong>
+        </div>
+        <div class="counter-item">
+          <span>Empty:</span> <strong id="emptyInputCount" style="color: #ef4444;">0</strong>
+        </div>
+      </div>
+      <div>
+        <span style="color: var(--text-muted);">Inline Floating Badge: </span>
+        <strong style="color: var(--accent-blue);">Supported on focus/hover</strong>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="tab-btn active" data-tab="loksewa" type="button">🏛️ Loksewa Aayog (Civil Service)</button>
+      <button class="tab-btn" data-tab="fintech" type="button">💳 FinTech & Banking (eSewa/Khalti)</button>
+      <button class="tab-btn" data-tab="university" type="button">🎓 University Admissions (TU/KU)</button>
+      <button class="tab-btn" data-tab="employment" type="button">🏢 Corporate & Tax (PAN/VAT)</button>
+      <button class="tab-btn" data-tab="wizard" type="button">🔄 Multi-Step Wizard (SPA Persistence)</button>
+      <button class="tab-btn" data-tab="custom" type="button">🧩 Custom & Shadow DOM</button>
+    </nav>
+
+    <!-- TAB 1: Loksewa Aayog Application Form -->
+    <section class="form-panel active" id="panel-loksewa">
+      <div class="panel-header">
+        <div>
+          <h2>🏛️ Loksewa Aayog — Civil Service Examination Application</h2>
+          <p>Realistic layout featuring Devanagari Unicode names, Citizenship credentials, BS Date of Birth, and Geographic hierarchy.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn-reset" onclick="resetForm('form-loksewa')">Reset Form</button>
+        </div>
+      </div>
+
+      <form id="form-loksewa" autocomplete="off" onsubmit="event.preventDefault();">
+        <div class="form-grid">
+          <div class="grid-full section-title">Personal Identification (व्यक्तिगत विवरण)</div>
+
+          <div class="form-group">
+            <label for="loksewa-fname">First Name (English) *</label>
+            <input type="text" id="loksewa-fname" name="firstName" placeholder="e.g. Aarav" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-lname">Last Name (English) *</label>
+            <input type="text" id="loksewa-lname" name="lastName" placeholder="e.g. Sharma" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-fullname">Full Name (English) *</label>
+            <input type="text" id="loksewa-fullname" name="fullName" placeholder="e.g. Aarav Sharma" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-npname">पूरा नाम (नेपाली युनिकोडमा) * <span class="nepali-tag">Devanagari</span></label>
+            <input type="text" id="loksewa-npname" name="nepaliName" placeholder="उदा: आरव शर्मा" required />
+          </div>
+
+          <div class="form-group">
+            <label>Gender (लिङ्ग) *</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="gender" value="Male" /> पुरुष (Male)
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="gender" value="Female" /> महिला (Female)
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="gender" value="Other" /> अन्य (Other)
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-dob-ad">Date of Birth (AD)</label>
+            <input type="date" id="loksewa-dob-ad" name="dateOfBirth" />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-dob-bs">Date of Birth (Bikram Sambat - BS) <span class="nepali-tag">YYYY-MM-DD</span></label>
+            <input type="text" id="loksewa-dob-bs" name="dateOfBirthBS" placeholder="e.g. 2055-04-12" />
+          </div>
+
+          <div class="grid-full section-title">Government Credentials (नागरिकता र परिचयपत्र)</div>
+
+          <div class="form-group">
+            <label for="loksewa-citizenship">Citizenship Certificate Number *</label>
+            <input type="text" id="loksewa-citizenship" name="citizenshipNumber" placeholder="e.g. 27-01-78-12345" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-citizenship-dist">Citizenship Issue District *</label>
+            <select id="loksewa-citizenship-dist" name="citizenshipIssueDistrict">
+              <option value="">-- Select Issue District --</option>
+              <option value="Kathmandu">Kathmandu</option>
+              <option value="Lalitpur">Lalitpur</option>
+              <option value="Bhaktapur">Bhaktapur</option>
+              <option value="Kaski">Kaski</option>
+              <option value="Morang">Morang</option>
+              <option value="Jhapa">Jhapa</option>
+              <option value="Chitwan">Chitwan</option>
+              <option value="Rupandehi">Rupandehi</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-nid">National Identity Card (NID No.)</label>
+            <input type="text" id="loksewa-nid" name="nationalId" placeholder="10-digit NID e.g. 8923019283" />
+          </div>
+
+          <div class="grid-full section-title">Permanent Address (स्थायी ठेगाना)</div>
+
+          <div class="form-group">
+            <label for="loksewa-province">Province (प्रदेश) *</label>
+            <select id="loksewa-province" name="province" required>
+              <option value="">-- Select Province --</option>
+              <option value="Bagmati">Bagmati Province</option>
+              <option value="Gandaki">Gandaki Province</option>
+              <option value="Koshi">Koshi Province</option>
+              <option value="Madhesh">Madhesh Province</option>
+              <option value="Lumbini">Lumbini Province</option>
+              <option value="Karnali">Karnali Province</option>
+              <option value="Sudurpashchim">Sudurpashchim Province</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-district">District (जिल्ला) *</label>
+            <input type="text" id="loksewa-district" name="district" placeholder="e.g. Kathmandu" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-municipality">Municipality / Rural Municipality *</label>
+            <input type="text" id="loksewa-municipality" name="municipality" placeholder="e.g. Kathmandu Metropolitan City" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-ward">Ward Number (वडा नं.) *</label>
+            <input type="number" id="loksewa-ward" name="ward" min="1" max="35" placeholder="e.g. 4" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-tole">Tole / Street Address</label>
+            <input type="text" id="loksewa-tole" name="tole" placeholder="e.g. Baluwatar Marg" />
+          </div>
+
+          <div class="grid-full section-title">Contact & Communication</div>
+
+          <div class="form-group">
+            <label for="loksewa-phone">Mobile Phone (NTC/Ncell) *</label>
+            <input type="tel" id="loksewa-phone" name="phone" placeholder="98XXXXXXXX" required />
+          </div>
+
+          <div class="form-group">
+            <label for="loksewa-email">Email Address *</label>
+            <input type="email" id="loksewa-email" name="email" placeholder="example@gmail.com" required />
+          </div>
+
+          <div class="grid-full">
+            <label>Inclusivity / Quota Reservation (समावेशी समूह)</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label"><input type="checkbox" name="quotaKhulla" checked /> खुला (Open)</label>
+              <label class="checkbox-label"><input type="checkbox" name="quotaMahila" /> महिला (Female)</label>
+              <label class="checkbox-label"><input type="checkbox" name="quotaJanajati" /> आदिवासी / जनजाति</label>
+              <label class="checkbox-label"><input type="checkbox" name="quotaMadhesi" /> मधेसी (Madhesi)</label>
+              <label class="checkbox-label"><input type="checkbox" name="quotaDalit" /> दलित (Dalit)</label>
+              <label class="checkbox-label"><input type="checkbox" name="quotaApanga" /> अपाङ्ग (Differently Abled)</label>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 2: FinTech & Banking (eSewa / Khalti / ConnectIPS) -->
+    <section class="form-panel" id="panel-fintech">
+      <div class="panel-header">
+        <div>
+          <h2>💳 FinTech & Banking Payment Gateway</h2>
+          <p>Digital wallet checkout, interbank funds transfer, IBAN/Account verification, and PAN/VAT billing.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn-reset" onclick="resetForm('form-fintech')">Reset Form</button>
+        </div>
+      </div>
+
+      <form id="form-fintech" autocomplete="off" onsubmit="event.preventDefault();">
+        <div class="form-grid">
+          <div class="grid-full section-title">Wallet & Account Details</div>
+
+          <div class="form-group">
+            <label for="fintech-esewa">eSewa ID / Khalti Mobile Number *</label>
+            <input type="tel" id="fintech-esewa" name="esewaId" placeholder="98XXXXXXXX" required />
+          </div>
+
+          <div class="form-group">
+            <label for="fintech-holder">Account Holder Name *</label>
+            <input type="text" id="fintech-holder" name="accountName" placeholder="Full legal name" required />
+          </div>
+
+          <div class="form-group">
+            <label for="fintech-bank">Commercial Bank *</label>
+            <select id="fintech-bank" name="bankName" required>
+              <option value="">-- Select Bank --</option>
+              <option value="Nabil Bank">Nabil Bank Limited</option>
+              <option value="Global IME Bank">Global IME Bank Limited</option>
+              <option value="NIC Asia Bank">NIC Asia Bank Limited</option>
+              <option value="Rastriya Banijya Bank">Rastriya Banijya Bank (RBB)</option>
+              <option value="Nepal Investment Mega Bank">Nepal Investment Mega Bank</option>
+              <option value="Everest Bank">Everest Bank Limited</option>
+              <option value="Standard Chartered Bank Nepal">Standard Chartered Bank Nepal</option>
+              <option value="Siddhartha Bank">Siddhartha Bank Limited</option>
+              <option value="Sanima Bank">Sanima Bank Limited</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="fintech-accno">Bank Account Number *</label>
+            <input type="text" id="fintech-accno" name="accountNumber" placeholder="14-16 digit account number" required />
+          </div>
+
+          <div class="form-group">
+            <label for="fintech-branch">Branch Location</label>
+            <input type="text" id="fintech-branch" name="branch" placeholder="e.g. New Road Branch" />
+          </div>
+
+          <div class="form-group">
+            <label for="fintech-amount">Transfer Amount (NPR) *</label>
+            <input type="number" id="fintech-amount" name="amount" min="10" placeholder="e.g. 5000" required />
+          </div>
+
+          <div class="grid-full section-title">Merchant & Tax Invoice Details</div>
+
+          <div class="form-group">
+            <label for="fintech-pan">Merchant PAN / VAT Number</label>
+            <input type="text" id="fintech-pan" name="panNumber" placeholder="9-digit PAN e.g. 601234567" />
+          </div>
+
+          <div class="form-group">
+            <label for="fintech-remarks">Payment Purpose / Remarks</label>
+            <input type="text" id="fintech-remarks" name="remarks" placeholder="e.g. Invoice #2026-QA Test" />
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 3: University Admissions (TU/KU) -->
+    <section class="form-panel" id="panel-university">
+      <div class="panel-header">
+        <div>
+          <h2>🎓 University Admission & Student Portal (TU / KU / Pokhara)</h2>
+          <p>Academic records, roll numbers, faculty programs, blood group, and emergency guardian contacts.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn-reset" onclick="resetForm('form-university')">Reset Form</button>
+        </div>
+      </div>
+
+      <form id="form-university" autocomplete="off" onsubmit="event.preventDefault();">
+        <div class="form-grid">
+          <div class="grid-full section-title">Student Information</div>
+
+          <div class="form-group">
+            <label for="uni-name">Student Full Name *</label>
+            <input type="text" id="uni-name" name="fullName" placeholder="e.g. Bipin Adhikari" required />
+          </div>
+
+          <div class="form-group">
+            <label for="uni-roll">Student Roll / Registration No *</label>
+            <input type="text" id="uni-roll" name="rollNumber" placeholder="e.g. 2080-BCT-042" required />
+          </div>
+
+          <div class="form-group">
+            <label for="uni-faculty">Academic Faculty / Department *</label>
+            <select id="uni-faculty" name="faculty" required>
+              <option value="">-- Select Faculty --</option>
+              <option value="Institute of Engineering (IOE)">Institute of Engineering (IOE)</option>
+              <option value="Institute of Science & Technology (IoST)">Institute of Science & Technology (IoST)</option>
+              <option value="Faculty of Management">Faculty of Management</option>
+              <option value="Institute of Medicine (IOM)">Institute of Medicine (IOM)</option>
+              <option value="Faculty of Humanities & Social Sciences">Faculty of Humanities & Social Sciences</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="uni-college">Campus / Affiliated College *</label>
+            <input type="text" id="uni-college" name="college" placeholder="e.g. Pulchowk Campus" required />
+          </div>
+
+          <div class="form-group">
+            <label for="uni-blood">Blood Group (रक्त समूह) *</label>
+            <select id="uni-blood" name="bloodGroup" required>
+              <option value="">-- Select Blood Group --</option>
+              <option value="A+">A Positive (A+)</option>
+              <option value="A-">A Negative (A-)</option>
+              <option value="B+">B Positive (B+)</option>
+              <option value="B-">B Negative (B-)</option>
+              <option value="AB+">AB Positive (AB+)</option>
+              <option value="AB-">AB Negative (AB-)</option>
+              <option value="O+">O Positive (O+)</option>
+              <option value="O-">O Negative (O-)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="uni-gpa">Previous GPA / Aggregate Percentage</label>
+            <input type="text" id="uni-gpa" name="gpa" placeholder="e.g. 3.75 or 82%" />
+          </div>
+
+          <div class="grid-full section-title">Parent & Guardian Contacts</div>
+
+          <div class="form-group">
+            <label for="uni-guardian">Guardian / Parent Full Name *</label>
+            <input type="text" id="uni-guardian" name="guardianName" placeholder="e.g. Ramesh Adhikari" required />
+          </div>
+
+          <div class="form-group">
+            <label for="uni-gphone">Guardian Emergency Mobile *</label>
+            <input type="tel" id="uni-gphone" name="guardianPhone" placeholder="98XXXXXXXX" required />
+          </div>
+
+          <div class="form-group">
+            <label for="uni-email">Student Email Address</label>
+            <input type="email" id="uni-email" name="email" placeholder="student@tu.edu.np" />
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 4: Corporate & Tax (PAN/VAT) -->
+    <section class="form-panel" id="panel-employment">
+      <div class="panel-header">
+        <div>
+          <h2>🏢 Corporate Staff Profile & Inland Revenue Department (IRD)</h2>
+          <p>Enterprise employment profiles, staff ID, corporate email domains, PAN, VAT, and salary structures.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn-reset" onclick="resetForm('form-employment')">Reset Form</button>
+        </div>
+      </div>
+
+      <form id="form-employment" autocomplete="off" onsubmit="event.preventDefault();">
+        <div class="form-grid">
+          <div class="grid-full section-title">Company & Designation</div>
+
+          <div class="form-group">
+            <label for="corp-name">Employee Full Name *</label>
+            <input type="text" id="corp-name" name="fullName" placeholder="e.g. Pragya Thapa" required />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-company">Company / Employer Name *</label>
+            <input type="text" id="corp-company" name="companyName" placeholder="e.g. F1Soft International" required />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-designation">Designation / Role Title *</label>
+            <input type="text" id="corp-designation" name="designation" placeholder="e.g. Lead QA Automation Engineer" required />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-staffid">Staff Identification Number</label>
+            <input type="text" id="corp-staffid" name="staffId" placeholder="e.g. EMP-9021" />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-email">Corporate Email Address *</label>
+            <input type="email" id="corp-email" name="corporateEmail" placeholder="pragya@company.com.np" required />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-pan">Individual PAN Number *</label>
+            <input type="text" id="corp-pan" name="panNumber" placeholder="9-digit PAN e.g. 102938475" required />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-salary">Gross Monthly Salary (NPR)</label>
+            <input type="number" id="corp-salary" name="salary" placeholder="e.g. 95000" />
+          </div>
+
+          <div class="form-group">
+            <label for="corp-phone">Office / Contact Number</label>
+            <input type="tel" id="corp-phone" name="phone" placeholder="98XXXXXXXX" />
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 5: Multi-Step Wizard (SPA Persistence) -->
+    <section class="form-panel" id="panel-wizard">
+      <div class="panel-header">
+        <div>
+          <h2>🔄 Multi-Step Registration Wizard (SPA Session Persistence)</h2>
+          <p>Tests persona retention across step transitions (Step 1 → Step 2 → Step 3) using in-memory tab state.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn-reset" onclick="resetWizard()">Reset Wizard</button>
+        </div>
+      </div>
+
+      <div class="wizard-steps-indicator">
+        <div class="wizard-step-node active" id="wizardNode1">
+          <div class="step-circle">1</div>
+          <span>Identity</span>
+        </div>
+        <div class="wizard-step-node" id="wizardNode2">
+          <div class="step-circle">2</div>
+          <span>Address</span>
+        </div>
+        <div class="wizard-step-node" id="wizardNode3">
+          <div class="step-circle">3</div>
+          <span>Credentials & Review</span>
+        </div>
+      </div>
+
+      <form id="form-wizard" autocomplete="off" onsubmit="event.preventDefault();">
+        <div class="wizard-body">
+          <!-- Step 1 -->
+          <div id="wizardStep1" class="wizard-step-content">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="wiz-fname">First Name *</label>
+                <input type="text" id="wiz-fname" name="firstName" placeholder="First Name" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-lname">Last Name *</label>
+                <input type="text" id="wiz-lname" name="lastName" placeholder="Last Name" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-gender">Gender *</label>
+                <select id="wiz-gender" name="gender">
+                  <option value="">-- Select Gender --</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="wiz-phone">Mobile Phone *</label>
+                <input type="tel" id="wiz-phone" name="phone" placeholder="98XXXXXXXX" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div id="wizardStep2" class="wizard-step-content" style="display: none;">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="wiz-province">Province *</label>
+                <input type="text" id="wiz-province" name="province" placeholder="Province" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-district">District *</label>
+                <input type="text" id="wiz-district" name="district" placeholder="District" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-muni">Municipality *</label>
+                <input type="text" id="wiz-muni" name="municipality" placeholder="Municipality" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-ward">Ward Number *</label>
+                <input type="number" id="wiz-ward" name="ward" placeholder="Ward" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div id="wizardStep3" class="wizard-step-content" style="display: none;">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="wiz-citizenship">Citizenship Number</label>
+                <input type="text" id="wiz-citizenship" name="citizenshipNumber" placeholder="Citizenship No" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-email">Email Address</label>
+                <input type="email" id="wiz-email" name="email" placeholder="email@domain.com" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-occupation">Occupation / Job</label>
+                <input type="text" id="wiz-occupation" name="occupation" placeholder="Occupation" />
+              </div>
+              <div class="form-group">
+                <label for="wiz-bank">Preferred Bank</label>
+                <input type="text" id="wiz-bank" name="bankName" placeholder="Bank Name" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wizard-controls">
+          <button type="button" class="btn-wizard btn-prev" id="wizPrevBtn" disabled onclick="navigateWizard(-1)">Previous</button>
+          <button type="button" class="btn-wizard btn-next" id="wizNextBtn" onclick="navigateWizard(1)">Next Step</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 6: Custom & Shadow DOM Inputs -->
+    <section class="form-panel" id="panel-custom">
+      <div class="panel-header">
+        <div>
+          <h2>🧩 Custom Form Controls & Shadow DOM Test Bench</h2>
+          <p>Validates traversal into encapsulated open Shadow Roots and ARIA custom inputs.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="grid-full custom-control-box">
+          <div class="section-title">Encapsulated Web Component (Open Shadow Root)</div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            The fields below are dynamically attached inside a ShadowRoot:
+          </p>
+          <div id="shadowHost"></div>
+        </div>
+
+        <div class="grid-full custom-control-box">
+          <div class="section-title">ARIA Custom Checkboxes & Radio Groups</div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            Non-standard div elements with role="checkbox" and role="radio":
+          </p>
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <div role="checkbox" aria-checked="false" tabindex="0" class="aria-toggle" id="customAriaAgree" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <span class="box-icon" style="display: inline-block; width: 18px; height: 18px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; line-height: 18px;"></span>
+              <span>I accept the Nepal Government Citizen Service Terms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Nepal Test Filler Extension QA Bench • Built for high-reliability local form testing & continuous integration.
+    </footer>
+  </div>
+
+  <div class="toast" id="toastMessage"></div>
+
+  <script>
+    // Tab Switching Logic
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const formPanels = document.querySelectorAll('.form-panel');
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.getAttribute('data-tab');
+        tabButtons.forEach(b => b.classList.remove('active'));
+        formPanels.forEach(p => p.classList.remove('active'));
+
+        btn.classList.add('active');
+        const activePanel = document.getElementById(`panel-${tabId}`);
+        if (activePanel) activePanel.classList.add('active');
+        updateCounterStats();
+      });
+    });
+
+    // Theme Toggle Logic
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    let currentTheme = localStorage.getItem('demo-theme') || 'dark';
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+      localStorage.setItem('demo-theme', theme);
+    }
+
+    applyTheme(currentTheme);
+
+    themeToggleBtn.addEventListener('click', () => {
+      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+      applyTheme(currentTheme);
+    });
+
+    // Form Reset Logic
+    function resetForm(formId) {
+      const form = document.getElementById(formId);
+      if (form) {
+        form.reset();
+        showToast('Form fields cleared.');
+        updateCounterStats();
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastMessage');
+      if (toast) {
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2500);
+      }
+    }
+
+    // Input Counter Updates
+    function updateCounterStats() {
+      const allInputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
+      let filled = 0;
+      let total = allInputs.length;
+
+      allInputs.forEach(input => {
+        if (input.type === 'checkbox' || input.type === 'radio') {
+          if (input.checked) filled++;
+        } else if (input.value && input.value.trim().length > 0) {
+          filled++;
+        }
+      });
+
+      document.getElementById('totalInputCount').textContent = total;
+      document.getElementById('filledInputCount').textContent = filled;
+      document.getElementById('emptyInputCount').textContent = total - filled;
+    }
+
+    document.addEventListener('input', updateCounterStats);
+    document.addEventListener('change', updateCounterStats);
+
+    // Multi-Step Wizard Logic
+    let currentStep = 1;
+    function navigateWizard(delta) {
+      currentStep = Math.max(1, Math.min(3, currentStep + delta));
+
+      document.getElementById('wizardStep1').style.display = currentStep === 1 ? 'block' : 'none';
+      document.getElementById('wizardStep2').style.display = currentStep === 2 ? 'block' : 'none';
+      document.getElementById('wizardStep3').style.display = currentStep === 3 ? 'block' : 'none';
+
+      document.getElementById('wizardNode1').classList.toggle('active', currentStep >= 1);
+      document.getElementById('wizardNode2').classList.toggle('active', currentStep >= 2);
+      document.getElementById('wizardNode3').classList.toggle('active', currentStep >= 3);
+
+      document.getElementById('wizPrevBtn').disabled = currentStep === 1;
+      document.getElementById('wizNextBtn').textContent = currentStep === 3 ? 'Submit Application' : 'Next Step';
+
+      updateCounterStats();
+    }
+
+    function resetWizard() {
+      document.getElementById('form-wizard').reset();
+      currentStep = 1;
+      navigateWizard(0);
+      showToast('Wizard reset to Step 1.');
+    }
+
+    // Shadow DOM Initialization
+    const shadowHost = document.getElementById('shadowHost');
+    if (shadowHost) {
+      const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+      shadowRoot.innerHTML = `
+        <style>
+          .shadow-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            padding: 12px;
+            background: rgba(56, 189, 248, 0.05);
+            border-radius: 6px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+          }
+          label {
+            font-size: 12px;
+            color: #94a3b8;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+          }
+          input {
+            width: 100%;
+            padding: 8px 12px;
+            background: #0b1322;
+            border: 1px solid #334155;
+            color: #f8fafc;
+            border-radius: 6px;
+            box-sizing: border-box;
+          }
+        </style>
+        <div class="shadow-container">
+          <div>
+            <label for="shadowCitizenship">Shadow Citizen No</label>
+            <input type="text" id="shadowCitizenship" name="citizenshipNumber" placeholder="Shadow Citizenship" />
+          </div>
+          <div>
+            <label for="shadowPhone">Shadow Mobile</label>
+            <input type="tel" id="shadowPhone" name="phone" placeholder="Shadow Phone" />
+          </div>
+        </div>
+      `;
+    }
+
+    // ARIA Custom Checkbox Click Handler
+    const customAriaAgree = document.getElementById('customAriaAgree');
+    if (customAriaAgree) {
+      customAriaAgree.addEventListener('click', () => {
+        const isChecked = customAriaAgree.getAttribute('aria-checked') === 'true';
+        customAriaAgree.setAttribute('aria-checked', String(!isChecked));
+        const icon = customAriaAgree.querySelector('.box-icon');
+        if (icon) {
+          icon.textContent = !isChecked ? '✓' : '';
+          icon.style.background = !isChecked ? 'var(--primary)' : 'transparent';
+        }
+      });
+    }
+
+    // Initial Stats Calculation
+    updateCounterStats();
+  </script>
+</body>
+</html>
