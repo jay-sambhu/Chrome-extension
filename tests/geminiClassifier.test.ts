@@ -5,6 +5,7 @@ import {
   normalizeFieldType,
   sanitizePayload,
   testGeminiConnection,
+  NEPALI_ADMINISTRATIVE_TOKENS,
 } from '../src/services/geminiClassifier';
 import {
   clearClassificationCache,
@@ -377,6 +378,130 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
       expect(result.success).toBe(false);
       expect(result.status).toBe('network_error');
       expect(result.message).toContain('Network error: Unable to connect to Gemini API');
+    });
+  });
+
+  describe('Phase 3.2 — Nepali Administrative Prompt Context & Domain Vocabulary', () => {
+    const requiredTokens = [
+      'dastur',
+      'dharauti',
+      'nikasa',
+      'marfat',
+      'bujhaune',
+      'dastakhat',
+      'kaifiyat',
+    ] as const;
+
+    it('contains all 7 mandated Nepali administrative tokens with Devanagari script and definitions', () => {
+      const definedTokens = NEPALI_ADMINISTRATIVE_TOKENS.map((t) => t.token);
+
+      for (const required of requiredTokens) {
+        expect(definedTokens).toContain(required);
+        const item = NEPALI_ADMINISTRATIVE_TOKENS.find((t) => t.token === required);
+        expect(item).toBeDefined();
+        expect(item?.devanagari.length).toBeGreaterThan(0);
+        expect(item?.meaning.length).toBeGreaterThan(0);
+        expect(item?.recommendedTypes.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('injects all bureaucratic domain vocabulary tokens and Devanagari into Gemini prompt', () => {
+      const prompt = buildClassificationPrompt({
+        domain: 'nagarik.gov.np',
+        name: 'dharauti_rakam',
+        label: 'धरौटी रकम',
+      });
+
+      // Verify each token and its Devanagari counterpart are present in the prompt
+      for (const token of requiredTokens) {
+        expect(prompt).toContain(token);
+      }
+
+      expect(prompt).toContain('दस्तुर');
+      expect(prompt).toContain('धरौटी');
+      expect(prompt).toContain('निकासा');
+      expect(prompt).toContain('मार्फत');
+      expect(prompt).toContain('बुझाउने');
+      expect(prompt).toContain('दस्तखत');
+      expect(prompt).toContain('कैफियत');
+
+      // Verify domain metadata is integrated
+      expect(prompt).toContain('nagarik.gov.np');
+      expect(prompt).toContain('dharauti_rakam');
+      expect(prompt).toContain('धरौटी रकम');
+    });
+
+    it('normalizes bureaucratic domain tokens and common aliases accurately', () => {
+      // Fee / Deposit -> number
+      expect(normalizeFieldType('dastur')).toBe('number');
+      expect(normalizeFieldType('dastur_fee')).toBe('number');
+      expect(normalizeFieldType('dharauti')).toBe('number');
+      expect(normalizeFieldType('dharauti_amount')).toBe('number');
+
+      // Remarks -> textarea
+      expect(normalizeFieldType('kaifiyat')).toBe('textarea');
+      expect(normalizeFieldType('kaifiyat_bibaran')).toBe('textarea');
+      expect(normalizeFieldType('remarks_notes')).toBe('textarea');
+
+      // Submitter / Signatory -> fullName
+      expect(normalizeFieldType('bujhaune')).toBe('fullName');
+      expect(normalizeFieldType('bujhaune_ko_naam')).toBe('fullName');
+      expect(normalizeFieldType('dastakhat')).toBe('fullName');
+      expect(normalizeFieldType('authorized_signatory')).toBe('fullName');
+
+      // Care of / Intermediary -> guardianName
+      expect(normalizeFieldType('marfat')).toBe('guardianName');
+      expect(normalizeFieldType('samrakshak_marfat')).toBe('guardianName');
+    });
+
+    it('successfully classifies an administrative field end-to-end with injected vocabulary', async () => {
+      const payload: FieldClassificationPayload = {
+        domain: 'ird.gov.np',
+        name: 'dastur_bujhaune_person',
+        label: 'दस्तुर बुझाउने व्यक्ति',
+      };
+
+      const fakeResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    fieldType: 'fullName',
+                    confidence: 0.95,
+                    reasoning: 'Field represents bujhaune (person submitting payment)',
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      let sentPrompt = '';
+      const mockFetch: typeof fetch = async (_url, init) => {
+        const body = JSON.parse(String(init?.body || '{}'));
+        sentPrompt = body.contents[0].parts[0].text;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => fakeResponse,
+        } as any;
+      };
+
+      const config: GeminiConfig = {
+        apiKey: 'test-admin-key',
+        enabled: true,
+      };
+
+      const result = await classifyUnknownField(payload, config, mockFetch);
+      expect(sentPrompt).toContain('bujhaune');
+      expect(sentPrompt).toContain('बुझाउने');
+      expect(sentPrompt).toContain('dastur');
+      expect(result.fieldType).toBe('fullName');
+      expect(result.confidence).toBe(0.95);
+      expect(result.reasoning).toContain('bujhaune');
     });
   });
 });

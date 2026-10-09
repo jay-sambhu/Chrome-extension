@@ -101,7 +101,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Add a "Test Connection" button in the Gemini Settings section to verify API key validity and quota balance with instant user feedback.
 
 ### 3.2 Nepali Administrative Prompt Context
-- [ ] **Domain Vocabulary Injection**:
+- [x] **Domain Vocabulary Injection**:
   - Augment Gemini classification prompts with common Nepali bureaucratic tokens (`dastur`, `dharauti`, `nikasa`, `marfat`, `bujhaune`, `dastakhat`, `kaifiyat`) for higher classification accuracy.
 
 ### 3.3 Dynamic Model Selector
