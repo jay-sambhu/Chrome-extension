@@ -113,9 +113,9 @@ This document details upcoming improvements, feature enhancements, and quality-o
 ## 4. 🎨 User Experience & Customization (Medium Priority)
 
 ### 4.1 Custom Persona Presets
-- [ ] **Save Custom Profiles**:
+- [x] **Save Custom Profiles**:
   - Allow QA testers to configure and save custom persona presets (e.g., "QA SuperAdmin", "Biratnagar Retailer", "Pokhara Foreign Student").
-- [ ] **Preset Switching in Popup**:
+- [x] **Preset Switching in Popup**:
   - Quick dropdown selector in popup to switch between default archetypes and user-saved custom presets.
 
 ### 4.2 Copy Persona as JSON / Clipboard Export

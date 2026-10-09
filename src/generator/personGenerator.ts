@@ -24,12 +24,25 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-export function generateNepalAddress(targetProvince?: string, preferRural = false): NepalAddress {
-  const province: Province = targetProvince
-    ? NepalDataEngine.getProvinces().find((p) => p.name === targetProvince) || NepalDataEngine.getRandomProvince()
+export function generateNepalAddress(
+  targetProvince?: string,
+  preferRural = false,
+  targetDistrict?: string
+): NepalAddress {
+  let matchedDistrict: District | undefined;
+  if (targetDistrict) {
+    matchedDistrict = NepalDataEngine.districts.find(
+      (d) => d.name.toLowerCase() === targetDistrict.toLowerCase()
+    );
+  }
+
+  const province: Province = matchedDistrict
+    ? NepalDataEngine.getProvinces().find((p) => p.name.toLowerCase() === matchedDistrict!.province.toLowerCase()) || NepalDataEngine.getRandomProvince()
+    : targetProvince
+    ? NepalDataEngine.getProvinces().find((p) => p.name.toLowerCase() === targetProvince.toLowerCase()) || NepalDataEngine.getRandomProvince()
     : NepalDataEngine.getRandomProvince();
 
-  const district: District = NepalDataEngine.getRandomDistrict(province.name);
+  const district: District = matchedDistrict || NepalDataEngine.getRandomDistrict(province.name);
   const municipality: Municipality = NepalDataEngine.getRandomMunicipality(
     district.name,
     preferRural ? 'Rural Municipality' : undefined

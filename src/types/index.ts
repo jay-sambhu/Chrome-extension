@@ -337,8 +337,41 @@ export interface PageFieldInspection {
   source: 'domain_override' | 'heuristic' | 'ai_cached' | 'unmapped';
 }
 
+export interface PersonaPreset {
+  id: string;
+  name: string;
+  description?: string;
+  baseProfile: ProfileType;
+  gender?: Gender | 'Random';
+  preferredScript?: FillScript;
+  province?: string;
+  district?: string;
+  municipality?: string;
+  occupation?: string;
+  jobTitle?: string;
+  designation?: string;
+  department?: string;
+  companyName?: string;
+  school?: string;
+  faculty?: string;
+  grade?: string;
+  businessName?: string;
+  businessType?: string;
+  cropType?: string;
+  cooperative?: string;
+  bloodGroup?: BloodGroup;
+  bankName?: string;
+  emailDomain?: string;
+  panNumber?: string;
+  vatNumber?: string;
+  isBuiltin?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ExtensionSettings {
   defaultProfile: ProfileType;
+  selectedPresetId?: string;
   autoFillOnLoad: boolean;
   enableAiClassification: boolean;
   theme: 'dark' | 'light' | 'system';

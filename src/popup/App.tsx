@@ -39,6 +39,11 @@ import {
   DEFAULT_GEMINI_MODEL,
   resolveGeminiModel,
 } from '../services/geminiClassifier';
+import {
+  PersonaPreset,
+  getPersonaPresets,
+  generatePersonFromPreset,
+} from '../services/personaPresets';
 
 export const App: React.FC = () => {
   const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
@@ -76,13 +81,35 @@ export const App: React.FC = () => {
   const [testStatus, setTestStatus] = useState<GeminiConnectionTestResult | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
+  // Persona Presets State
+  const [presets, setPresets] = useState<PersonaPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+
   // Load preferences from chrome.storage
   useEffect(() => {
+    // Load presets
+    getPersonaPresets().then((list) => {
+      setPresets(list);
+    });
+
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       chrome.storage.local.get(
-        ['selectedProfile', 'fillCategories', 'fillScript', 'geminiApiKey', 'geminiAiClassificationEnabled', 'geminiModel'],
-        (res: Record<string, any>) => {
-          if (res.selectedProfile) setProfile(res.selectedProfile);
+        ['selectedProfile', 'selectedPresetId', 'fillCategories', 'fillScript', 'geminiApiKey', 'geminiAiClassificationEnabled', 'geminiModel'],
+        async (res: Record<string, any>) => {
+          const list = await getPersonaPresets();
+          setPresets(list);
+
+          if (res.selectedPresetId) {
+            setSelectedPresetId(res.selectedPresetId);
+            const matched = list.find((p) => p.id === res.selectedPresetId);
+            if (matched) {
+              setProfile(matched.baseProfile);
+              if (matched.preferredScript) setScript(matched.preferredScript);
+            }
+          } else if (res.selectedProfile) {
+            setProfile(res.selectedProfile);
+          }
+
           if (res.fillCategories) setCategories(res.fillCategories);
           if (res.fillScript === 'en' || res.fillScript === 'np') setScript(res.fillScript);
           if (res.geminiApiKey) setGeminiApiKey(res.geminiApiKey);
@@ -224,12 +251,40 @@ export const App: React.FC = () => {
     await loadActiveDomainAndInspect();
   };
 
-  const handleProfileChange = (newProfile: FillOptions['profile']) => {
-    setProfile(newProfile);
-    const newPerson = generateSyntheticPerson(newProfile);
-    setPerson(newPerson);
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.set({ selectedProfile: newProfile });
+  const handlePresetOrArchetypeChange = (selectionValue: string) => {
+    if (selectionValue.startsWith('archetype_')) {
+      const newProfile = selectionValue.replace('archetype_', '') as FillOptions['profile'];
+      setSelectedPresetId(null);
+      setProfile(newProfile);
+      const newPerson = generateSyntheticPerson(newProfile);
+      setPerson(newPerson);
+      setIsSessionSynced(false);
+      setStatus(null);
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.set({ selectedProfile: newProfile, selectedPresetId: null });
+      }
+    } else {
+      const preset = presets.find((p) => p.id === selectionValue);
+      if (preset) {
+        setSelectedPresetId(preset.id);
+        setProfile(preset.baseProfile);
+        if (preset.preferredScript) setScript(preset.preferredScript);
+        const newPerson = generatePersonFromPreset(preset);
+        setPerson(newPerson);
+        setIsSessionSynced(false);
+        setStatus({
+          type: 'success',
+          message: `Activated QA preset "${preset.name}"`,
+        });
+        setTimeout(() => setStatus(null), 2500);
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+          chrome.storage.local.set({
+            selectedProfile: preset.baseProfile,
+            selectedPresetId: preset.id,
+            fillScript: preset.preferredScript || script,
+          });
+        }
+      }
     }
   };
 
@@ -244,7 +299,18 @@ export const App: React.FC = () => {
   };
 
   const handleRegenerate = () => {
-    const newPerson = generateSyntheticPerson(profile);
+    let newPerson: SyntheticPerson;
+    if (selectedPresetId) {
+      const matched = presets.find((p) => p.id === selectedPresetId);
+      if (matched) {
+        newPerson = generatePersonFromPreset(matched);
+      } else {
+        newPerson = generateSyntheticPerson(profile);
+      }
+    } else {
+      newPerson = generateSyntheticPerson(profile);
+    }
+
     setPerson(newPerson);
     setIsSessionSynced(false);
     setStatus(null);
@@ -572,24 +638,56 @@ export const App: React.FC = () => {
 
       {activeTab === 'fill' ? (
         <>
-          {/* Profile Selector */}
+          {/* Profile / Persona Preset Selector */}
           <div className="section-block">
-            <label htmlFor="profile-select" className="section-label">Target Profile</label>
+            <div className="section-label-row">
+              <label htmlFor="profile-select" className="section-label">Target Persona / Preset</label>
+              <button
+                type="button"
+                className="btn-link-action"
+                onClick={() => {
+                  if (typeof chrome !== 'undefined' && chrome.runtime?.openOptionsPage) {
+                    chrome.runtime.openOptionsPage();
+                  }
+                }}
+                title="Configure custom persona presets in settings"
+              >
+                + Manage Presets
+              </button>
+            </div>
             <div className="select-wrapper">
               <select
                 id="profile-select"
                 className="custom-select"
-                value={profile}
-                onChange={(e) => handleProfileChange(e.target.value as FillOptions['profile'])}
+                value={selectedPresetId || `archetype_${profile}`}
+                onChange={(e) => handlePresetOrArchetypeChange(e.target.value)}
               >
-                <option value="general">General Person</option>
-                <option value="student">Student</option>
-                <option value="employee">Employee</option>
-                <option value="business">Business Owner</option>
-                <option value="teacher">Teacher</option>
-                <option value="farmer">Farmer</option>
+                <optgroup label="Default Archetypes">
+                  <option value="archetype_general">General Person</option>
+                  <option value="archetype_student">Student</option>
+                  <option value="archetype_employee">Employee</option>
+                  <option value="archetype_business">Business Owner</option>
+                  <option value="archetype_teacher">Teacher</option>
+                  <option value="archetype_farmer">Farmer</option>
+                </optgroup>
+                {presets.length > 0 && (
+                  <optgroup label="Custom QA Presets">
+                    {presets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.isBuiltin ? '★' : ''} ({p.baseProfile})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
+            {selectedPresetId && (
+              <div className="preset-active-indicator">
+                <span className="preset-pill">
+                  Active Preset: <strong>{presets.find((p) => p.id === selectedPresetId)?.name || 'Custom'}</strong>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Script Selection (English vs Devanagari) */}

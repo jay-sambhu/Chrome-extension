@@ -18,9 +18,23 @@ import {
   RefreshCw,
   Activity,
   AlertCircle,
+  Plus,
+  Edit3,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { ProfileType, FillScript, SyntheticPerson } from '../types';
 import { generateSyntheticPerson } from '../generator/personGenerator';
+import {
+  PersonaPreset,
+  getPersonaPresets,
+  savePersonaPreset,
+  deletePersonaPreset,
+  resetDefaultPresets,
+  generatePersonFromPreset,
+} from '../services/personaPresets';
+import { COMMERCIAL_BANKS } from '../generator/bankingDetails';
+import { NepalDataEngine } from '../generator/nepalDataEngine';
 import {
   getAllDomainMappings,
   deleteDomainRule,
@@ -79,6 +93,16 @@ export function App() {
   // Preview synthetic person
   const [previewPerson, setPreviewPerson] = useState<SyntheticPerson>(generateSyntheticPerson('general'));
 
+  // Persona presets state
+  const [presets, setPresets] = useState<PersonaPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [isEditingPreset, setIsEditingPreset] = useState(false);
+  const [editingPreset, setEditingPreset] = useState<Partial<PersonaPreset>>({
+    baseProfile: 'employee',
+    gender: 'Random',
+    preferredScript: 'en',
+  });
+
   // Notification feedback
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -89,9 +113,15 @@ export function App() {
 
   useEffect(() => {
     loadSettings();
+    loadPresets();
     refreshCacheCount();
     loadDomainMappings();
   }, []);
+
+  const loadPresets = async () => {
+    const list = await getPersonaPresets();
+    setPresets(list);
+  };
 
   const loadSettings = async () => {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -104,7 +134,12 @@ export function App() {
         'geminiModel',
         'enableFloatingBadge',
         'enableSessionPersistence',
+        'selectedPresetId',
       ])) as Record<string, any>;
+
+      if (data.selectedPresetId) {
+        setSelectedPresetId(data.selectedPresetId);
+      }
 
       if (data.selectedProfile) {
         setDefaultProfile(data.selectedProfile);
@@ -137,6 +172,77 @@ export function App() {
   const loadDomainMappings = async () => {
     const mappings = await getAllDomainMappings();
     setAllMappings(mappings);
+  };
+
+  const handleStartCreatePreset = () => {
+    setEditingPreset({
+      name: '',
+      description: '',
+      baseProfile: 'employee',
+      gender: 'Random',
+      preferredScript: 'en',
+      province: '',
+      district: '',
+      municipality: '',
+      companyName: '',
+      designation: '',
+      department: '',
+      school: '',
+      faculty: '',
+      grade: '',
+      businessName: '',
+      businessType: '',
+      bloodGroup: undefined,
+      bankName: '',
+      emailDomain: '',
+    });
+    setIsEditingPreset(true);
+  };
+
+  const handleStartEditPreset = (preset: PersonaPreset) => {
+    setEditingPreset({ ...preset });
+    setIsEditingPreset(true);
+  };
+
+  const handleSavePreset = async () => {
+    if (!editingPreset.name || editingPreset.name.trim() === '') {
+      alert('Please enter a name for the persona preset.');
+      return;
+    }
+    const saved = await savePersonaPreset({
+      ...editingPreset,
+      name: editingPreset.name.trim(),
+      baseProfile: editingPreset.baseProfile || 'general',
+    });
+    await loadPresets();
+    setIsEditingPreset(false);
+    showToast(`Saved preset "${saved.name}" successfully!`);
+  };
+
+  const handleDeletePreset = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete preset "${name}"?`)) return;
+    const ok = await deletePersonaPreset(id);
+    if (ok) {
+      await loadPresets();
+      showToast(`Deleted preset "${name}".`);
+    } else {
+      alert('Cannot delete built-in presets.');
+    }
+  };
+
+  const handleResetPresets = async () => {
+    if (!confirm('Reset all presets to default built-ins? Any custom presets will be lost.')) return;
+    await resetDefaultPresets();
+    await loadPresets();
+    showToast('Reset presets to default successfully.');
+  };
+
+  const handleTestPreset = (preset: PersonaPreset) => {
+    const p = generatePersonFromPreset(preset);
+    setSelectedPresetId(preset.id);
+    setPreviewPerson(p);
+    setDefaultProfile(preset.baseProfile);
+    showToast(`Generated live preview from "${preset.name}"!`);
   };
 
   const refreshCacheCount = async () => {
@@ -214,6 +320,8 @@ export function App() {
       enableSessionPersistence,
       aiEnabled,
       domainMappings: allMappings,
+      personaPresets: presets,
+      selectedPresetId,
     };
 
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -242,6 +350,13 @@ export function App() {
         if (parsed.enableSessionPersistence !== undefined) setEnableSessionPersistence(Boolean(parsed.enableSessionPersistence));
         if (parsed.aiEnabled !== undefined) setAiEnabled(parsed.aiEnabled);
 
+        if (parsed.personaPresets && Array.isArray(parsed.personaPresets)) {
+          setPresets(parsed.personaPresets);
+          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            await chrome.storage.local.set({ personaPresets: parsed.personaPresets });
+          }
+        }
+
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
           await chrome.storage.local.set({
             selectedProfile: parsed.defaultProfile || defaultProfile,
@@ -249,6 +364,7 @@ export function App() {
             enableFloatingBadge: parsed.enableFloatingBadge !== undefined ? parsed.enableFloatingBadge : enableFloatingBadge,
             enableSessionPersistence: parsed.enableSessionPersistence !== undefined ? parsed.enableSessionPersistence : enableSessionPersistence,
             aiEnabled: parsed.aiEnabled !== undefined ? parsed.aiEnabled : aiEnabled,
+            selectedPresetId: parsed.selectedPresetId || selectedPresetId,
           });
 
           // Import domain mappings
@@ -264,6 +380,7 @@ export function App() {
         }
 
         await loadDomainMappings();
+        await loadPresets();
         showToast('Settings successfully restored from backup!');
       } catch (err) {
         alert('Invalid backup JSON file.');
@@ -350,6 +467,327 @@ export function App() {
                       <h3>{p.label}</h3>
                     </div>
                     <p>{p.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="section-divider" />
+
+              {/* Custom Persona Presets Section */}
+              <div className="preset-section-header">
+                <div>
+                  <h3>Custom QA Persona Presets</h3>
+                  <p className="tab-subtitle" style={{ marginBottom: 0 }}>
+                    Configure and save customized test personas (e.g. QA SuperAdmin, Biratnagar Retailer, Pokhara Foreign Student) with geographic or professional constraints.
+                  </p>
+                </div>
+                <div className="preset-header-actions">
+                  <button className="primary-btn" onClick={handleStartCreatePreset}>
+                    <Plus size={16} /> New Persona Preset
+                  </button>
+                  <button className="secondary-btn" onClick={handleResetPresets} title="Reset all presets back to defaults">
+                    <RotateCcw size={14} /> Reset Built-ins
+                  </button>
+                </div>
+              </div>
+
+              {isEditingPreset && (
+                <div className="preset-editor-card">
+                  <h3>{editingPreset.id ? 'Edit Persona Preset' : 'Create New Persona Preset'}</h3>
+                  <div className="preset-form-grid">
+                    <div className="form-field-group">
+                      <label>Preset Name *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., QA SuperAdmin, Biratnagar Retailer"
+                        value={editingPreset.name || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Base Archetype *</label>
+                      <select
+                        value={editingPreset.baseProfile || 'general'}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, baseProfile: e.target.value as ProfileType })}
+                      >
+                        <option value="general">General Citizen</option>
+                        <option value="student">Student</option>
+                        <option value="employee">Employee</option>
+                        <option value="business">Business Owner</option>
+                        <option value="teacher">Teacher / Faculty</option>
+                        <option value="farmer">Farmer / Agriculture</option>
+                      </select>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Description / QA Notes</label>
+                      <input
+                        type="text"
+                        placeholder="Purpose of this persona preset"
+                        value={editingPreset.description || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, description: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Preferred Gender</label>
+                      <select
+                        value={editingPreset.gender || 'Random'}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, gender: e.target.value as any })}
+                      >
+                        <option value="Random">Random</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Preferred Script</label>
+                      <select
+                        value={editingPreset.preferredScript || 'en'}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, preferredScript: e.target.value as FillScript })}
+                      >
+                        <option value="en">English (Romanized)</option>
+                        <option value="np">नेपाली (Devanagari Unicode)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Target Province</label>
+                      <select
+                        value={editingPreset.province || ''}
+                        onChange={(e) => {
+                          const prov = e.target.value;
+                          setEditingPreset({ ...editingPreset, province: prov, district: '' });
+                        }}
+                      >
+                        <option value="">Any / Random Province</option>
+                        {NepalDataEngine.provinces.map((pr) => (
+                          <option key={pr.name} value={pr.name}>
+                            {pr.name} ({pr.nepaliName})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Target District</label>
+                      <select
+                        value={editingPreset.district || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, district: e.target.value })}
+                      >
+                        <option value="">Any / Random District</option>
+                        {(editingPreset.province
+                          ? NepalDataEngine.getDistrictsByProvince(editingPreset.province)
+                          : NepalDataEngine.districts
+                        ).map((d) => (
+                          <option key={d.name} value={d.name}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Target Municipality (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Biratnagar Metropolitan City"
+                        value={editingPreset.municipality || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, municipality: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Designation / Job Title</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. QA Super Administrator, Merchant"
+                        value={editingPreset.designation || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, designation: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Company / Organization Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Nepal Enterprise QA Cloud"
+                        value={editingPreset.companyName || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, companyName: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>School / College (Student)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Prithvi Narayan Campus"
+                        value={editingPreset.school || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, school: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Faculty / Grade (Student)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Science & Technology / Bachelor 3rd Year"
+                        value={editingPreset.faculty || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, faculty: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Business Name (Business Owner)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Birat Trade Syndicate"
+                        value={editingPreset.businessName || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, businessName: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Custom Email Domain</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. superadmin.qa or testcompany.np"
+                        value={editingPreset.emailDomain || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, emailDomain: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Blood Group</label>
+                      <select
+                        value={editingPreset.bloodGroup || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, bloodGroup: (e.target.value as any) || undefined })}
+                      >
+                        <option value="">Any / Random</option>
+                        {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((bg) => (
+                          <option key={bg} value={bg}>{bg}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label>Bank Name</label>
+                      <select
+                        value={editingPreset.bankName || ''}
+                        onChange={(e) => setEditingPreset({ ...editingPreset, bankName: e.target.value })}
+                      >
+                        <option value="">Any / Random Bank</option>
+                        {COMMERCIAL_BANKS.map((b) => (
+                          <option key={b.shortName} value={b.shortName}>
+                            {b.shortName} ({b.nameNp})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="preset-form-actions">
+                    <button className="primary-btn" onClick={handleSavePreset}>
+                      <Save size={16} /> Save Preset
+                    </button>
+                    <button className="secondary-btn" onClick={() => setIsEditingPreset(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="preset-grid">
+                {presets.map((preset) => (
+                  <div key={preset.id} className="preset-card">
+                    <div className="preset-card-top">
+                      <div className="preset-card-title-row">
+                        <h4 className="preset-card-title">{preset.name}</h4>
+                        <div className="preset-badges">
+                          <span className="badge-profile">{preset.baseProfile}</span>
+                          <span className={preset.isBuiltin ? 'badge-builtin' : 'badge-custom'}>
+                            {preset.isBuiltin ? 'Built-in' : 'Custom'}
+                          </span>
+                        </div>
+                      </div>
+                      {preset.description && <p className="preset-desc">{preset.description}</p>}
+
+                      <div className="preset-details-list">
+                        {(preset.province || preset.district) && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">Location:</span>
+                            <span className="val">
+                              {[preset.district, preset.province].filter(Boolean).join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {preset.designation && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">Designation:</span>
+                            <span className="val">{preset.designation}</span>
+                          </div>
+                        )}
+                        {preset.companyName && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">Company:</span>
+                            <span className="val">{preset.companyName}</span>
+                          </div>
+                        )}
+                        {preset.school && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">School:</span>
+                            <span className="val">{preset.school}</span>
+                          </div>
+                        )}
+                        {preset.businessName && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">Business:</span>
+                            <span className="val">{preset.businessName}</span>
+                          </div>
+                        )}
+                        {preset.emailDomain && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">Email Domain:</span>
+                            <span className="val">@{preset.emailDomain}</span>
+                          </div>
+                        )}
+                        {preset.bankName && (
+                          <div className="preset-detail-item">
+                            <span className="lbl">Bank:</span>
+                            <span className="val">{preset.bankName}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="preset-card-actions">
+                      <button
+                        className="preset-btn-test"
+                        onClick={() => handleTestPreset(preset)}
+                        title="Generate and view live persona in preview"
+                      >
+                        <Sparkles size={13} /> Test Generate
+                      </button>
+                      <button
+                        className="preset-btn-action"
+                        onClick={() => handleStartEditPreset(preset)}
+                        title="Edit preset settings"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      {!preset.isBuiltin && (
+                        <button
+                          className="preset-btn-action danger"
+                          onClick={() => handleDeletePreset(preset.id, preset.name)}
+                          title="Delete custom preset"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
