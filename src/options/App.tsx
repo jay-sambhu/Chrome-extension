@@ -22,9 +22,14 @@ import {
   Edit3,
   Sparkles,
   RotateCcw,
+  Copy,
 } from 'lucide-react';
 import { ProfileType, FillScript, SyntheticPerson } from '../types';
 import { generateSyntheticPerson } from '../generator/personGenerator';
+import {
+  serializePersonaToJson,
+  copyTextToClipboard,
+} from '../utils/personaExport';
 import {
   PersonaPreset,
   getPersonaPresets,
@@ -243,6 +248,20 @@ export function App() {
     setPreviewPerson(p);
     setDefaultProfile(preset.baseProfile);
     showToast(`Generated live preview from "${preset.name}"!`);
+  };
+
+  const handleCopyPreviewJson = async () => {
+    try {
+      const jsonStr = serializePersonaToJson(previewPerson, { script: defaultScript });
+      const success = await copyTextToClipboard(jsonStr);
+      if (success) {
+        showToast('Copied persona JSON to clipboard for Postman/Swagger!');
+      } else {
+        alert('Could not copy to clipboard.');
+      }
+    } catch {
+      alert('Failed to copy persona JSON.');
+    }
   };
 
   const refreshCacheCount = async () => {
@@ -848,12 +867,21 @@ export function App() {
 
               <div className="preview-header">
                 <h3>Live Persona Preview ({defaultProfile.toUpperCase()})</h3>
-                <button
-                  className="secondary-btn"
-                  onClick={() => setPreviewPerson(generateSyntheticPerson(defaultProfile))}
-                >
-                  <RefreshCw size={14} /> Re-generate
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="secondary-btn"
+                    onClick={handleCopyPreviewJson}
+                    title="Copy Persona JSON for Postman / Swagger / API testing"
+                  >
+                    <Copy size={14} /> Copy JSON
+                  </button>
+                  <button
+                    className="secondary-btn"
+                    onClick={() => setPreviewPerson(generateSyntheticPerson(defaultProfile))}
+                  >
+                    <RefreshCw size={14} /> Re-generate
+                  </button>
+                </div>
               </div>
 
               <div className="preview-panel">

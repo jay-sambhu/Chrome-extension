@@ -22,6 +22,7 @@ import {
   Activity,
   AlertCircle,
   CheckCircle2,
+  Copy,
 } from 'lucide-react';
 import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 import {
@@ -44,6 +45,10 @@ import {
   getPersonaPresets,
   generatePersonFromPreset,
 } from '../services/personaPresets';
+import {
+  serializePersonaToJson,
+  copyTextToClipboard,
+} from '../utils/personaExport';
 
 export const App: React.FC = () => {
   const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
@@ -84,6 +89,9 @@ export const App: React.FC = () => {
   // Persona Presets State
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+
+  // Copy as JSON state
+  const [copiedJson, setCopiedJson] = useState(false);
 
   // Load preferences from chrome.storage
   useEffect(() => {
@@ -296,6 +304,29 @@ export const App: React.FC = () => {
       }
       return updated;
     });
+  };
+
+  const handleCopyJson = async () => {
+    try {
+      const jsonStr = serializePersonaToJson(person, { script });
+      const success = await copyTextToClipboard(jsonStr);
+      if (success) {
+        setCopiedJson(true);
+        setStatus({
+          type: 'success',
+          message: 'Persona JSON copied to clipboard for Postman / Swagger!',
+        });
+        setTimeout(() => setCopiedJson(false), 2500);
+      } else {
+        setStatus({
+          type: 'warning',
+          message: 'Could not access clipboard automatically.',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to copy persona JSON:', err);
+      setStatus({ type: 'error', message: 'Failed to serialize or copy JSON.' });
+    }
   };
 
   const handleRegenerate = () => {
@@ -741,15 +772,26 @@ export const App: React.FC = () => {
                   ? `${person.devanagari.honorific} ${person.devanagari.fullName}`
                   : `${person.honorific} ${person.fullName}`}
               </div>
-              <div className="preview-gender-badge">
-                {person.profileType.toUpperCase()} •{' '}
-                {script === 'np' && person.devanagari ? person.devanagari.gender : person.gender},{' '}
-                {person.age}y
-                {isSessionSynced && (
-                  <span className="session-synced-badge" title="Retained across wizard steps in this browser tab">
-                    🔗 Wizard Retained
-                  </span>
-                )}
+              <div className="preview-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  className={`btn-preview-copy ${copiedJson ? 'copied' : ''}`}
+                  onClick={handleCopyJson}
+                  title="Copy Persona as JSON for Postman / Swagger / API testing"
+                >
+                  {copiedJson ? <Check size={11} strokeWidth={3} /> : <Copy size={11} />}
+                  <span>{copiedJson ? 'Copied' : 'JSON'}</span>
+                </button>
+                <div className="preview-gender-badge">
+                  {person.profileType.toUpperCase()} •{' '}
+                  {script === 'np' && person.devanagari ? person.devanagari.gender : person.gender},{' '}
+                  {person.age}y
+                  {isSessionSynced && (
+                    <span className="session-synced-badge" title="Retained across wizard steps in this browser tab">
+                      🔗 Wizard Retained
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -838,6 +880,25 @@ export const App: React.FC = () => {
                 {isReverting ? 'Reverting...' : 'Revert Form'}
               </button>
             </div>
+
+            <button
+              type="button"
+              className={`btn btn-secondary btn-copy-json ${copiedJson ? 'copied' : ''}`}
+              onClick={handleCopyJson}
+              title="Copy current persona as formatted JSON for direct pasting into Postman, Swagger, or API payload testing"
+            >
+              {copiedJson ? (
+                <>
+                  <Check size={14} strokeWidth={3} />
+                  Copied Persona JSON!
+                </>
+              ) : (
+                <>
+                  <Copy size={14} />
+                  Copy Persona as JSON
+                </>
+              )}
+            </button>
           </div>
         </>
       ) : (

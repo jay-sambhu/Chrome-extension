@@ -119,7 +119,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Quick dropdown selector in popup to switch between default archetypes and user-saved custom presets.
 
 ### 4.2 Copy Persona as JSON / Clipboard Export
-- [ ] **Export to Clipboard**:
+- [x] **Export to Clipboard**:
   - "Copy Persona as JSON" button in popup for direct pasting into Postman, Swagger, or API payload testing.
 
 ### 4.3 Light / Dark Theme Toggle
