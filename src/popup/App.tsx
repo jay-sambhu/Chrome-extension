@@ -190,8 +190,8 @@ export const App: React.FC = () => {
 
   const handleCycleTheme = async () => {
     const next: ThemePreference =
-      themePreference === 'system' ? 'dark' :
-      themePreference === 'dark' ? 'light' : 'system';
+      themePreference === 'system' ? 'light' :
+      themePreference === 'light' ? 'dark' : 'system';
     setThemePreference(next);
     applyThemeToDocument(next);
     await saveThemePreference(next);
@@ -557,7 +557,7 @@ export const App: React.FC = () => {
             type="button"
             className="btn-icon-header"
             onClick={handleCycleTheme}
-            title={`Theme: ${themePreference === 'system' ? 'Auto (System)' : themePreference === 'dark' ? 'Dark' : 'Light'} (Click to cycle)`}
+            title={`Theme: ${themePreference === 'system' ? 'Auto (System)' : themePreference === 'light' ? 'Warm Light' : 'Warm Dark'} (Click to cycle)`}
             aria-label="Cycle theme"
           >
             {themePreference === 'dark' ? (

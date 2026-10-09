@@ -259,40 +259,40 @@ const screenshot4Html = `<!DOCTYPE html>
 const screenshot5Html = `<!DOCTYPE html>
 <html>
 <head><style>${baseCss}
-  .theme-box-dark { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 24px; color: #f8fafc; }
-  .theme-box-light { flex: 1; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; color: #0f172a; }
-  .pill-dark { background: #1e293b; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #38bdf8; display: inline-block; margin-bottom: 12px; }
-  .pill-light { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #0284c7; display: inline-block; margin-bottom: 12px; }
-  .card-d { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 14px; margin-top: 12px; }
-  .card-l { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-top: 12px; }
+  .theme-box-dark { flex: 1; background: #1c1917; border: 1px solid #44403c; border-radius: 12px; padding: 24px; color: #fafaf9; }
+  .theme-box-light { flex: 1; background: #fbf8f4; border: 1px solid #e6ded3; border-radius: 12px; padding: 24px; color: #261c14; }
+  .pill-dark { background: #292524; border: 1px solid #44403c; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #f59e0b; display: inline-block; margin-bottom: 12px; font-weight: 600; }
+  .pill-light { background: #ffffff; border: 1px solid #ded3c5; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #d97706; display: inline-block; margin-bottom: 12px; font-weight: 600; box-shadow: 0 1px 3px rgba(120,53,15,0.06); }
+  .card-d { background: #292524; border: 1px solid #44403c; border-radius: 8px; padding: 14px; margin-top: 12px; }
+  .card-l { background: #ffffff; border: 1px solid #e6ded3; border-radius: 8px; padding: 14px; margin-top: 12px; box-shadow: 0 2px 8px rgba(120,53,15,0.04); }
 </style></head>
 <body>
 <div class="canvas">
   <div class="browser-chrome">
     <div class="browser-dots"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div>
-    <div class="browser-bar">🎨 Nepal Test Filler — Dual Modern Design Themes</div>
-    <div class="browser-badge">🌙 Dark & ☀️ Light Mode</div>
+    <div class="browser-bar">🎨 Nepal Test Filler — Warm Design Themes</div>
+    <div class="browser-badge">☀️ Warm Light & 🌙 Warm Espresso Dark</div>
   </div>
   <div class="showcase-area" style="gap: 24px;">
     <div class="theme-box-dark">
-      <div class="pill-dark">🌙 Dark Slate & Crimson Theme</div>
+      <div class="pill-dark">🌙 Warm Espresso Dark</div>
       <h2 style="font-size: 20px; font-weight: 700;">Engineered for Low Light</h2>
-      <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Deep slate background with high-contrast text and vibrant crimson accents.</p>
+      <p style="font-size: 13px; color: #a8a29e; margin-top: 4px;">Deep warm obsidian stone with glowing amber accents and rhododendron crimson.</p>
       <div class="card-d">
         <div style="font-weight: 700;">QA SuperAdmin Preset</div>
-        <div style="font-size: 12px; color: #38bdf8; margin-top: 2px;">Lead QA Automation Engineer • Nepal Tech</div>
-        <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;">📍 Kathmandu • 📞 9841000000 • 🆔 27-01-70-11111</div>
+        <div style="font-size: 12px; color: #f59e0b; margin-top: 2px;">Lead QA Automation Engineer • Nepal Tech</div>
+        <div style="font-size: 11px; color: #a8a29e; margin-top: 6px;">📍 Kathmandu • 📞 9841000000 • 🆔 27-01-70-11111</div>
       </div>
     </div>
 
     <div class="theme-box-light">
-      <div class="pill-light">☀️ Clean Light Theme</div>
-      <h2 style="font-size: 20px; font-weight: 700;">Crystal Clear Daytime Mode</h2>
-      <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Crisp white cards, subtle slate borders, and automatic system theme detection.</p>
+      <div class="pill-light">☀️ Warm Cream Daylight</div>
+      <h2 style="font-size: 20px; font-weight: 700;">Rich Inviting Daytime Palette</h2>
+      <p style="font-size: 13px; color: #78716c; margin-top: 4px;">Warm Himalayan cream canvas, crisp cards, sand borders, and golden amber accents.</p>
       <div class="card-l">
-        <div style="font-weight: 700; color: #0f172a;">Biratnagar Retailer Preset</div>
-        <div style="font-size: 12px; color: #0284c7; margin-top: 2px;">Koshi Wholesalers • Merchant Account</div>
-        <div style="font-size: 11px; color: #64748b; margin-top: 6px;">📍 Morang, Koshi • 📞 9802000000 • 🆔 12-01-72-22222</div>
+        <div style="font-weight: 700; color: #261c14;">Biratnagar Retailer Preset</div>
+        <div style="font-size: 12px; color: #d97706; margin-top: 2px;">Koshi Wholesalers • Merchant Account</div>
+        <div style="font-size: 11px; color: #78716c; margin-top: 6px;">📍 Morang, Koshi • 📞 9802000000 • 🆔 12-01-72-22222</div>
       </div>
     </div>
   </div>

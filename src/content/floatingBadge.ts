@@ -131,8 +131,8 @@ function createBadgeElement(): HTMLElement {
     width: '24px',
     height: '24px',
     borderRadius: '50%',
-    backgroundColor: '#0f172a',
-    border: '1px solid rgba(220, 20, 60, 0.4)',
+    backgroundColor: '#1c1917',
+    border: '1px solid rgba(217, 38, 68, 0.4)',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.08)',
     display: 'none',
     alignItems: 'center',
@@ -149,8 +149,8 @@ function createBadgeElement(): HTMLElement {
     if (badge) {
       badge.style.opacity = '1';
       badge.style.transform = 'scale(1.1)';
-      badge.style.borderColor = '#dc143c';
-      badge.style.boxShadow = '0 4px 12px rgba(220, 20, 60, 0.35)';
+      badge.style.borderColor = '#d92644';
+      badge.style.boxShadow = '0 4px 12px rgba(217, 38, 68, 0.35)';
     }
     cancelHide();
   });
@@ -160,7 +160,7 @@ function createBadgeElement(): HTMLElement {
     if (badge) {
       badge.style.opacity = '0.85';
       badge.style.transform = 'scale(1)';
-      badge.style.borderColor = 'rgba(220, 20, 60, 0.4)';
+      badge.style.borderColor = 'rgba(217, 38, 68, 0.4)';
       badge.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.25)';
     }
     scheduleHide();
@@ -221,11 +221,11 @@ function createMenuElement(): HTMLElement {
     position: 'absolute',
     zIndex: '2147483647',
     width: '210px',
-    backgroundColor: '#0f172a',
-    color: '#f8fafc',
+    backgroundColor: '#1c1917',
+    color: '#fafaf9',
     borderRadius: '10px',
-    border: '1px solid rgba(255, 255, 255, 0.12)',
-    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+    border: '1px solid rgba(217, 119, 6, 0.25)',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(217, 119, 6, 0.1)',
     display: 'none',
     flexDirection: 'column',
     overflow: 'hidden',
@@ -244,7 +244,7 @@ function createMenuElement(): HTMLElement {
       padding: 6px 8px 4px 8px;
       font-size: 11px;
       font-weight: 700;
-      color: #94a3b8;
+      color: #a8a29e;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       margin-bottom: 4px;
     }
@@ -260,7 +260,7 @@ function createMenuElement(): HTMLElement {
       padding: 6px 8px;
       background: transparent;
       border: none;
-      color: #e2e8f0;
+      color: #fafaf9;
       border-radius: 6px;
       cursor: pointer;
       text-align: left;
@@ -269,11 +269,11 @@ function createMenuElement(): HTMLElement {
       width: 100%;
     }
     #__nepal_filler_floating_menu .__nepal_menu_item:hover {
-      background: rgba(220, 20, 60, 0.15);
+      background: rgba(217, 38, 68, 0.18);
       color: #ffffff;
     }
     #__nepal_filler_floating_menu .__nepal_menu_revert:hover {
-      background: rgba(239, 68, 68, 0.15);
+      background: rgba(239, 68, 68, 0.18);
       color: #fca5a5;
     }
     #__nepal_filler_floating_menu .__nepal_menu_icon {

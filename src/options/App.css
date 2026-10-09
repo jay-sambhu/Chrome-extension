@@ -1,45 +1,65 @@
 :root {
-  --primary: #DC143C;
-  --primary-hover: #b01030;
-  --bg-dark: #0f172a;
-  --bg-card: #1e293b;
-  --bg-hover: #334155;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
-  --accent: #38bdf8;
-  --success: #10b981;
-  --danger: #ef4444;
+  --primary: #d92644;           /* Warm Nepal Rhododendron Crimson */
+  --primary-hover: #b81734;
+  --bg-dark: #fbf8f4;           /* Warm Cream Canvas */
+  --bg-card: #ffffff;           /* Warm Card Surface */
+  --bg-hover: #f5ede2;          /* Warm Sand Hover */
+  --text-main: #261c14;         /* Warm Espresso Text */
+  --text-muted: #78716c;        /* Warm Stone Muted */
+  --border-color: #e6ded3;      /* Warm Sand Border */
+  --border-warm: #dfd4c5;
+  --accent: #d97706;            /* Warm Marigold Amber Accent */
+  --accent-hover: #b45309;
+  --success: #15803d;
+  --danger: #dc2626;
+  --warm-gold: #f59e0b;
 }
 
 [data-theme="light"] {
-  --bg-dark: #f8fafc;
+  --bg-dark: #fbf8f4;
   --bg-card: #ffffff;
-  --bg-hover: #f1f5f9;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border-color: #e2e8f0;
-  --accent: #0284c7;
+  --bg-hover: #f5ede2;
+  --text-main: #261c14;
+  --text-muted: #78716c;
+  --border-color: #e6ded3;
+  --accent: #d97706;
+}
+
+[data-theme="dark"] {
+  --primary: #ef4444;
+  --primary-hover: #dc2626;
+  --bg-dark: #1c1917;           /* Warm Obsidian Stone 900 */
+  --bg-card: #292524;           /* Warm Stone 800 */
+  --bg-hover: #3b3531;
+  --text-main: #fafaf9;         /* Warm Stone 50 */
+  --text-muted: #a8a29e;        /* Warm Stone 400 */
+  --border-color: #44403c;      /* Warm Stone 700 */
+  --accent: #f59e0b;            /* Luminous Amber */
 }
 
 [data-theme="light"] .options-header {
   background-color: #ffffff;
-  border-bottom-color: #e2e8f0;
+  border-bottom-color: #e6ded3;
 }
 
 [data-theme="light"] .options-sidebar {
-  background-color: #f8fafc;
-  border-right-color: #e2e8f0;
+  background-color: #f7f1e7;
+  border-right-color: #e6ded3;
+}
+
+[data-theme="dark"] .options-sidebar {
+  background-color: #24201e;
+  border-right-color: #44403c;
 }
 
 [data-theme="light"] .preview-panel {
-  background-color: #f8fafc;
-  border-color: #e2e8f0;
+  background-color: #fcf9f4;
+  border-color: #e6ded3;
 }
 
 [data-theme="light"] .preset-details-list {
-  background-color: #f8fafc;
-  border-color: #e2e8f0;
+  background-color: #fcf9f4;
+  border-color: #e6ded3;
 }
 
 [data-theme="light"] .input-text,
@@ -47,28 +67,28 @@
 [data-theme="light"] .form-field-group input,
 [data-theme="light"] .form-field-group select {
   background-color: #ffffff;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  border-color: #ded3c5;
+  color: #261c14;
 }
 
 [data-theme="light"] .checkbox-label {
   background-color: #ffffff;
-  border-color: #e2e8f0;
-  color: #0f172a;
+  border-color: #e6ded3;
+  color: #261c14;
 }
 
 [data-theme="light"] .profile-card {
   background-color: #ffffff;
-  border-color: #e2e8f0;
+  border-color: #e6ded3;
 }
 
 [data-theme="light"] .profile-card:hover {
-  border-color: #94a3b8;
+  border-color: #cbbca8;
 }
 
 [data-theme="light"] .preset-card {
   background-color: #ffffff;
-  border-color: #e2e8f0;
+  border-color: #e6ded3;
 }
 
 [data-theme="light"] .preset-editor-card {
@@ -80,14 +100,16 @@
 [data-theme="light"] .shortcut-card,
 [data-theme="light"] .backup-box {
   background-color: #ffffff;
-  border-color: #e2e8f0;
+  border-color: #e6ded3;
 }
 
 [data-theme="light"] kbd {
-  background-color: #f1f5f9;
-  border-color: #cbd5e1;
-  border-bottom-color: #94a3b8;
-  color: #0f172a;
+  background-color: #f5ede2;
+  border-color: #ded3c5;
+  border-bottom-color: #cbbca8;
+  color: #261c14;
+  box-shadow: 0 2px 4px rgba(120, 53, 15, 0.08);
+}
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
@@ -187,32 +209,32 @@ body {
 }
 
 [data-theme="light"] .theme-toggle-group {
-  background-color: #f1f5f9;
-  border-color: #e2e8f0;
+  background-color: #f5ede2;
+  border-color: #e6ded3;
 }
 
 [data-theme="light"] .theme-toggle-btn {
-  color: #64748b;
+  color: #78716c;
 }
 
 [data-theme="light"] .theme-toggle-btn:hover {
-  color: #0f172a;
+  color: #261c14;
 }
 
 [data-theme="light"] .theme-toggle-btn.active {
   background-color: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  color: #261c14;
+  box-shadow: 0 1px 3px rgba(120, 53, 15, 0.08);
 }
 
 .options-badge {
-  background-color: rgba(220, 20, 60, 0.15);
-  color: #ff6b81;
+  background-color: rgba(217, 38, 68, 0.12);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 9999px;
-  border: 1px solid rgba(220, 20, 60, 0.3);
+  border: 1px solid rgba(217, 38, 68, 0.3);
 }
 
 .options-body {
@@ -696,17 +718,18 @@ kbd {
 }
 
 .tip-box {
-  background-color: rgba(56, 189, 248, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background-color: rgba(217, 119, 6, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.25);
   border-radius: 8px;
   padding: 16px;
   font-size: 13px;
-  color: #bae6fd;
+  color: var(--text-main);
   margin-top: 24px;
 }
 
 .tip-box code {
-  background-color: #0f172a;
+  background-color: var(--bg-hover);
+  color: var(--text-main);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: monospace;
@@ -920,21 +943,23 @@ kbd {
 }
 
 .badge-builtin {
-  background-color: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
+  background-color: rgba(217, 119, 6, 0.12);
+  color: var(--accent);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 9999px;
+  border: 1px solid rgba(217, 119, 6, 0.25);
 }
 
 .badge-custom {
-  background-color: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
+  background-color: rgba(217, 38, 68, 0.12);
+  color: var(--primary);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 9999px;
+  border: 1px solid rgba(217, 38, 68, 0.25);
 }
 
 .preset-desc {
@@ -952,7 +977,7 @@ kbd {
   padding: 10px 12px;
   border-radius: 6px;
   font-size: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
 }
 
 .preset-detail-item {
@@ -983,9 +1008,9 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
+  background-color: rgba(217, 119, 6, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 600;
   padding: 6px 12px;
@@ -997,8 +1022,8 @@ kbd {
 }
 
 .preset-btn-test:hover {
-  background-color: rgba(56, 189, 248, 0.25);
-  color: #7dd3fc;
+  background-color: rgba(217, 119, 6, 0.22);
+  color: var(--accent-hover);
 }
 
 .preset-btn-action {
