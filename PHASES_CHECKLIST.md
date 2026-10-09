@@ -235,7 +235,7 @@ Expand form-filling flexibility with domain-specific archetypes and browser prod
 ---
 
 ## 🚀 Pre-Release & Chrome Web Store Checklist
-- [ ] Manifest security review: ensure minimal permissions (`storage`, `activeTab`, `scripting`).
-- [ ] Complete unit and integration test suite passing cleanly with 100% green status.
-- [ ] Production build verification with clean bundle size analysis.
-- [ ] Review against [CHROMEWEBSTORE.md](file:///home/devxgamer/Nepali%20Filler/CHROMEWEBSTORE.md) and prepare screenshots (1280×800).
+- [x] Manifest security review: ensure minimal permissions (`storage`, `activeTab`, `scripting`).
+- [x] Complete unit and integration test suite passing cleanly with 100% green status (25 test files, 268 tests).
+- [x] Production build verification with clean bundle size analysis.
+- [x] Review against [CHROMEWEBSTORE.md](file:///home/devxgamer/Nepali%20Filler/CHROMEWEBSTORE.md) and prepare screenshots (1280×800) and promotional tiles (440×280, 920×680).
