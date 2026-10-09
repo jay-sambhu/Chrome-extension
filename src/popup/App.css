@@ -18,6 +18,125 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+[data-theme="light"] {
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+  --color-accent: #0284c7;
+  --shadow-popup: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .preview-card {
+  background: linear-gradient(135deg, #ffffff, #f8fafc);
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .preview-card .preview-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .preview-card .preview-text {
+  color: #334155;
+}
+
+[data-theme="light"] .preview-gender-badge {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .custom-select {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .script-toggle-group {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .script-btn {
+  color: #64748b;
+}
+
+[data-theme="light"] .script-btn.active {
+  color: #ffffff;
+}
+
+[data-theme="light"] .category-chip {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+[data-theme="light"] .category-chip.active {
+  background: rgba(220, 20, 60, 0.08);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+[data-theme="light"] .ai-settings-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .ai-input,
+[data-theme="light"] .ai-select {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+[data-theme="light"] .btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+[data-theme="light"] .btn-copy-json {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+[data-theme="light"] .btn-copy-json:hover:not(:disabled) {
+  background: #f0f9ff;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+[data-theme="light"] .btn-preview-copy {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .mode-pill.offline {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .btn-icon-header {
+  color: #64748b;
+}
+
+[data-theme="light"] .btn-icon-header:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -370,6 +489,12 @@ body {
 }
 
 /* Header Action */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .btn-icon-header {
   background: transparent;
   border: 1px solid var(--color-border);

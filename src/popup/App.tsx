@@ -23,7 +23,17 @@ import {
   AlertCircle,
   CheckCircle2,
   Copy,
+  Sun,
+  Moon,
+  Laptop,
 } from 'lucide-react';
+import {
+  ThemePreference,
+  applyThemeToDocument,
+  loadThemePreference,
+  saveThemePreference,
+  setupSystemThemeListener,
+} from '../utils/themeManager';
 import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 import {
   deleteDomainRule,
@@ -93,8 +103,30 @@ export const App: React.FC = () => {
   // Copy as JSON state
   const [copiedJson, setCopiedJson] = useState(false);
 
+  // Theme Preference State
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+
   // Load preferences from chrome.storage
   useEffect(() => {
+    // Load and apply theme preference
+    loadThemePreference().then((pref) => {
+      setThemePreference(pref);
+      applyThemeToDocument(pref);
+    });
+
+    const cleanupTheme = setupSystemThemeListener(() => {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.get(['theme'], (res) => {
+          const currentPref = (res?.theme as ThemePreference) || 'system';
+          if (currentPref === 'system') {
+            applyThemeToDocument('system');
+          }
+        });
+      } else {
+        applyThemeToDocument('system');
+      }
+    });
+
     // Load presets
     getPersonaPresets().then((list) => {
       setPresets(list);
@@ -150,7 +182,20 @@ export const App: React.FC = () => {
     }
 
     getCacheStats().then((stats) => setCacheCount(stats.count));
+
+    return () => {
+      cleanupTheme();
+    };
   }, []);
+
+  const handleCycleTheme = async () => {
+    const next: ThemePreference =
+      themePreference === 'system' ? 'dark' :
+      themePreference === 'dark' ? 'light' : 'system';
+    setThemePreference(next);
+    applyThemeToDocument(next);
+    await saveThemePreference(next);
+  };
 
   const toggleScript = (newScript: FillScript) => {
     setScript(newScript);
@@ -507,14 +552,31 @@ export const App: React.FC = () => {
             <div className="brand-subtitle">Realistic Synthetic Test Data</div>
           </div>
         </div>
-        <button
-          type="button"
-          className={`btn-icon-header ${showAiSettings ? 'active' : ''}`}
-          onClick={() => setShowAiSettings(!showAiSettings)}
-          title="Gemini AI Settings"
-        >
-          <Settings size={16} />
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="btn-icon-header"
+            onClick={handleCycleTheme}
+            title={`Theme: ${themePreference === 'system' ? 'Auto (System)' : themePreference === 'dark' ? 'Dark' : 'Light'} (Click to cycle)`}
+            aria-label="Cycle theme"
+          >
+            {themePreference === 'dark' ? (
+              <Moon size={16} />
+            ) : themePreference === 'light' ? (
+              <Sun size={16} />
+            ) : (
+              <Laptop size={16} />
+            )}
+          </button>
+          <button
+            type="button"
+            className={`btn-icon-header ${showAiSettings ? 'active' : ''}`}
+            onClick={() => setShowAiSettings(!showAiSettings)}
+            title="Gemini AI Settings"
+          >
+            <Settings size={16} />
+          </button>
+        </div>
       </header>
 
       {/* Mode Indicator Pill */}

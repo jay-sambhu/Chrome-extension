@@ -123,7 +123,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - "Copy Persona as JSON" button in popup for direct pasting into Postman, Swagger, or API payload testing.
 
 ### 4.3 Light / Dark Theme Toggle
-- [ ] **Theme Preference**:
+- [x] **Theme Preference**:
   - Add toggle for Light Theme alongside the existing Dark Crimson/Slate theme with auto-detection of `prefers-color-scheme`.
 
 ---

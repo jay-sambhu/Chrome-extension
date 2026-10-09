@@ -23,7 +23,17 @@ import {
   Sparkles,
   RotateCcw,
   Copy,
+  Sun,
+  Moon,
+  Laptop,
 } from 'lucide-react';
+import {
+  ThemePreference,
+  applyThemeToDocument,
+  loadThemePreference,
+  saveThemePreference,
+  setupSystemThemeListener,
+} from '../utils/themeManager';
 import { ProfileType, FillScript, SyntheticPerson } from '../types';
 import { generateSyntheticPerson } from '../generator/personGenerator';
 import {
@@ -108,6 +118,9 @@ export function App() {
     preferredScript: 'en',
   });
 
+  // Theme preference state
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+
   // Notification feedback
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -121,7 +134,36 @@ export function App() {
     loadPresets();
     refreshCacheCount();
     loadDomainMappings();
+
+    loadThemePreference().then((pref) => {
+      setThemePreference(pref);
+      applyThemeToDocument(pref);
+    });
+
+    const cleanupTheme = setupSystemThemeListener(() => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['theme'], (res) => {
+          const currentPref = (res?.theme as ThemePreference) || 'system';
+          if (currentPref === 'system') {
+            applyThemeToDocument('system');
+          }
+        });
+      } else {
+        applyThemeToDocument('system');
+      }
+    });
+
+    return () => {
+      cleanupTheme();
+    };
   }, []);
+
+  const handleThemeChange = async (newTheme: ThemePreference) => {
+    setThemePreference(newTheme);
+    applyThemeToDocument(newTheme);
+    await saveThemePreference(newTheme);
+    showToast(`Theme updated to ${newTheme === 'system' ? 'System Default' : newTheme === 'dark' ? 'Dark Mode' : 'Light Mode'}.`);
+  };
 
   const loadPresets = async () => {
     const list = await getPersonaPresets();
@@ -277,6 +319,7 @@ export function App() {
         fillCategories,
         enableFloatingBadge,
         enableSessionPersistence,
+        theme: themePreference,
       });
       showToast('General preferences saved successfully!');
     }
@@ -333,6 +376,7 @@ export function App() {
     const backupData = {
       version: '0.1.0',
       exportedAt: new Date().toISOString(),
+      theme: themePreference,
       defaultProfile,
       fillCategories,
       enableFloatingBadge,
@@ -363,6 +407,11 @@ export function App() {
         const text = e.target?.result as string;
         const parsed = JSON.parse(text);
 
+        if (parsed.theme === 'dark' || parsed.theme === 'light' || parsed.theme === 'system') {
+          setThemePreference(parsed.theme);
+          applyThemeToDocument(parsed.theme);
+        }
+
         if (parsed.defaultProfile) setDefaultProfile(parsed.defaultProfile);
         if (parsed.fillCategories) setFillCategories(parsed.fillCategories);
         if (parsed.enableFloatingBadge !== undefined) setEnableFloatingBadge(Boolean(parsed.enableFloatingBadge));
@@ -384,6 +433,7 @@ export function App() {
             enableSessionPersistence: parsed.enableSessionPersistence !== undefined ? parsed.enableSessionPersistence : enableSessionPersistence,
             aiEnabled: parsed.aiEnabled !== undefined ? parsed.aiEnabled : aiEnabled,
             selectedPresetId: parsed.selectedPresetId || selectedPresetId,
+            theme: (parsed.theme === 'dark' || parsed.theme === 'light' || parsed.theme === 'system') ? parsed.theme : themePreference,
           });
 
           // Import domain mappings
@@ -419,7 +469,41 @@ export function App() {
             <p>Comprehensive Preferences, Archetype Profiles & Shortcuts</p>
           </div>
         </div>
-        <div className="options-badge">v0.1.0 • Manifest V3</div>
+        <div className="options-header-actions">
+          <div className="theme-toggle-group">
+            <button
+              type="button"
+              className={`theme-toggle-btn ${themePreference === 'dark' ? 'active' : ''}`}
+              onClick={() => handleThemeChange('dark')}
+              title="Dark Theme"
+              aria-label="Dark Theme"
+            >
+              <Moon size={14} />
+              <span>Dark</span>
+            </button>
+            <button
+              type="button"
+              className={`theme-toggle-btn ${themePreference === 'light' ? 'active' : ''}`}
+              onClick={() => handleThemeChange('light')}
+              title="Light Theme"
+              aria-label="Light Theme"
+            >
+              <Sun size={14} />
+              <span>Light</span>
+            </button>
+            <button
+              type="button"
+              className={`theme-toggle-btn ${themePreference === 'system' ? 'active' : ''}`}
+              onClick={() => handleThemeChange('system')}
+              title="System Theme"
+              aria-label="System Theme"
+            >
+              <Laptop size={14} />
+              <span>Auto</span>
+            </button>
+          </div>
+          <div className="options-badge">v0.1.0 • Manifest V3</div>
+        </div>
       </header>
 
       {/* Main Layout */}
@@ -861,6 +945,48 @@ export function App() {
                 <p className="help-text">
                   Keeps the same synthetic citizen in tab memory across multi-step forms (Step 1: Personal → Step 2: Address → Step 3: Education) instead of generating new random individuals on each page.
                 </p>
+              </div>
+
+              <div className="section-divider" />
+
+              <h3>Theme & Appearance</h3>
+              <div className="setting-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>
+                      Color Theme
+                    </div>
+                    <p className="help-text" style={{ margin: 0 }}>
+                      Choose between Dark Crimson/Slate, Clean Light Mode, or automatic System OS detection.
+                    </p>
+                  </div>
+                  <div className="theme-toggle-group">
+                    <button
+                      type="button"
+                      className={`theme-toggle-btn ${themePreference === 'dark' ? 'active' : ''}`}
+                      onClick={() => handleThemeChange('dark')}
+                    >
+                      <Moon size={14} />
+                      <span>Dark</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`theme-toggle-btn ${themePreference === 'light' ? 'active' : ''}`}
+                      onClick={() => handleThemeChange('light')}
+                    >
+                      <Sun size={14} />
+                      <span>Light</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`theme-toggle-btn ${themePreference === 'system' ? 'active' : ''}`}
+                      onClick={() => handleThemeChange('system')}
+                    >
+                      <Laptop size={14} />
+                      <span>Auto</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="section-divider" />
