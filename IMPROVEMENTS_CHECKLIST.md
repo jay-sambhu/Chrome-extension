@@ -140,7 +140,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Run `npm run typecheck`, `npm run build`, and `npm test` on every push and pull request.
 
 ### 5.3 Chrome Web Store Marketing Assets
-- [ ] **Store Screenshots (1280×800)**:
+- [x] **Store Screenshots (1280×800)**:
   - Generate clean screenshots demonstrating popup, 1-click filling, BS dates, and domain overrides.
-- [ ] **Promotional Banner (440×280 & 920×680)**:
+- [x] **Promotional Banner (440×280 & 920×680)**:
   - Design branded crimson & slate promotional tile highlighting Nepal test data specialization.
