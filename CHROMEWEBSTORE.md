@@ -48,3 +48,16 @@ All assets are located in [`store-assets/`](file:///home/devxgamer/Nepali%20Fill
 1. **Small Promo Tile (`promo-small-440x280.png`)**: `440×280` px with crimson & slate branding, Nepal flag, and core developer value proposition.
 2. **Marquee / Large Promo Tile (`promo-marquee-920x680.png`)**: `920×680` px high-resolution hero promotional banner for Chrome Web Store featured listing.
 
+## Release Packaging for Store Upload
+
+To generate a production-ready `.zip` package for the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devcenter):
+
+```bash
+npm run package
+```
+
+This command will:
+1. Compile the production bundle (`dist/`).
+2. Verify that `manifest.json`, popup HTML, options HTML, and all icon sizes (`16`, `48`, `128`) are present.
+3. Package all assets into `nepal-test-filler-v0.1.0.zip` with `manifest.json` at the root of the archive.
+
