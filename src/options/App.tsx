@@ -34,6 +34,10 @@ import {
 import {
   testGeminiConnection,
   GeminiConnectionTestResult,
+  SUPPORTED_GEMINI_MODELS,
+  DEFAULT_GEMINI_MODEL,
+  FALLBACK_GEMINI_MODEL,
+  resolveGeminiModel,
 } from '../services/geminiClassifier';
 import './App.css';
 
@@ -64,6 +68,7 @@ export function App() {
   // AI settings
   const [aiEnabled, setAiEnabled] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_GEMINI_MODEL);
   const [cacheCount, setCacheCount] = useState(0);
   const [testStatus, setTestStatus] = useState<GeminiConnectionTestResult | null>(null);
   const [isTesting, setIsTesting] = useState(false);
@@ -96,6 +101,7 @@ export function App() {
         'fillCategories',
         'aiEnabled',
         'geminiApiKey',
+        'geminiModel',
         'enableFloatingBadge',
         'enableSessionPersistence',
       ])) as Record<string, any>;
@@ -121,6 +127,9 @@ export function App() {
       }
       if (data.geminiApiKey) {
         setApiKey(data.geminiApiKey);
+      }
+      if (data.geminiModel) {
+        setSelectedModel(resolveGeminiModel(data.geminiModel));
       }
     }
   };
@@ -154,6 +163,7 @@ export function App() {
         aiEnabled,
         geminiAiClassificationEnabled: aiEnabled,
         geminiApiKey: apiKey.trim(),
+        geminiModel: selectedModel,
       });
       showToast('AI classification settings updated!');
     }
@@ -163,14 +173,14 @@ export function App() {
     setIsTesting(true);
     setTestStatus(null);
     try {
-      const res = await testGeminiConnection(apiKey);
+      const res = await testGeminiConnection(apiKey, selectedModel);
       setTestStatus(res);
     } catch (err) {
       setTestStatus({
         success: false,
         status: 'error',
         message: `Connection test failed: ${err instanceof Error ? err.message : String(err)}`,
-        model: 'gemini-3.5-flash-lite',
+        model: selectedModel,
       });
     } finally {
       setIsTesting(false);
@@ -625,6 +635,27 @@ export function App() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="setting-card">
+                <label><strong>Gemini Model:</strong></label>
+                <select
+                  className="input-select"
+                  value={selectedModel}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    if (testStatus) setTestStatus(null);
+                  }}
+                >
+                  {SUPPORTED_GEMINI_MODELS.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.id} — {model.description}
+                    </option>
+                  ))}
+                </select>
+                <p className="help-text">
+                  Select model for unknown field classification. Automatically falls back to {FALLBACK_GEMINI_MODEL} if the selected model is unavailable.
+                </p>
               </div>
 
               <div className="setting-card">

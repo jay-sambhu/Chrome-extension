@@ -474,7 +474,8 @@ body {
   height: 18px;
 }
 
-.input-text {
+.input-text,
+.input-select {
   background-color: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -485,7 +486,8 @@ body {
   max-width: 480px;
 }
 
-.input-text:focus {
+.input-text:focus,
+.input-select:focus {
   outline: none;
   border-color: var(--accent);
 }

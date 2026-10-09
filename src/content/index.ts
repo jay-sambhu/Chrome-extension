@@ -1,7 +1,7 @@
 import { scanFormFields } from './detector';
 import { clearForm, fillPage, fillPageAsync, inspectPageFields, revertForm } from './filler';
 import { ExtensionMessage, GeminiConfig } from '../types';
-import { classifyUnknownField } from '../services/geminiClassifier';
+import { classifyUnknownField, resolveGeminiModel } from '../services/geminiClassifier';
 import { getDomainMapping } from '../services/domainMapping';
 import { initFloatingBadge } from './floatingBadge';
 import {
@@ -157,7 +157,7 @@ chrome.runtime.onMessage.addListener(
           const config: GeminiConfig = {
             apiKey: String(store.geminiApiKey || ''),
             enabled: Boolean(store.geminiAiClassificationEnabled),
-            model: String(store.geminiModel || 'gemini-3.5-flash-lite'),
+            model: resolveGeminiModel(store.geminiModel),
           };
           const result = await classifyUnknownField(message.payload, config);
           sendResponse({ status: 'ok', result });
@@ -255,7 +255,7 @@ chrome.runtime.onMessage.addListener(
             geminiConfig = {
               apiKey: String(store.geminiApiKey || ''),
               enabled: Boolean(store.geminiAiClassificationEnabled),
-              model: String(store.geminiModel || 'gemini-3.5-flash-lite'),
+              model: resolveGeminiModel(store.geminiModel),
             };
           }
 

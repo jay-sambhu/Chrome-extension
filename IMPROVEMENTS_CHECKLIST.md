@@ -105,7 +105,7 @@ This document details upcoming improvements, feature enhancements, and quality-o
   - Augment Gemini classification prompts with common Nepali bureaucratic tokens (`dastur`, `dharauti`, `nikasa`, `marfat`, `bujhaune`, `dastakhat`, `kaifiyat`) for higher classification accuracy.
 
 ### 3.3 Dynamic Model Selector
-- [ ] **Model Options Upgrade**:
+- [x] **Model Options Upgrade**:
   - Update model selection to include `gemini-2.5-flash`, `gemini-2.5-pro`, and `gemini-1.5-flash` with fallback to `gemini-3.5-flash-lite`.
 
 ---

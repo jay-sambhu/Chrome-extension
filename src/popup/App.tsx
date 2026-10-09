@@ -35,6 +35,9 @@ import {
   VALID_FIELD_TYPES,
   testGeminiConnection,
   GeminiConnectionTestResult,
+  SUPPORTED_GEMINI_MODELS,
+  DEFAULT_GEMINI_MODEL,
+  resolveGeminiModel,
 } from '../services/geminiClassifier';
 
 export const App: React.FC = () => {
@@ -66,7 +69,7 @@ export const App: React.FC = () => {
   const [showAiSettings, setShowAiSettings] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [geminiModel, setGeminiModel] = useState('gemini-3.5-flash-lite');
+  const [geminiModel, setGeminiModel] = useState<string>(DEFAULT_GEMINI_MODEL);
   const [showKey, setShowKey] = useState(false);
   const [cacheCount, setCacheCount] = useState(0);
   const [aiSaveMsg, setAiSaveMsg] = useState<string | null>(null);
@@ -86,7 +89,7 @@ export const App: React.FC = () => {
           if (typeof res.geminiAiClassificationEnabled === 'boolean') {
             setAiEnabled(res.geminiAiClassificationEnabled);
           }
-          if (res.geminiModel) setGeminiModel(res.geminiModel);
+          if (res.geminiModel) setGeminiModel(resolveGeminiModel(res.geminiModel));
         }
       );
     }
@@ -492,8 +495,11 @@ export const App: React.FC = () => {
                   if (testStatus) setTestStatus(null);
                 }}
               >
-                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Fast & Lightweight)</option>
-                <option value="gemini-3.8-flash">gemini-3.8-flash (Balanced)</option>
+                {SUPPORTED_GEMINI_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.id} ({model.description})
+                  </option>
+                ))}
               </select>
 
               <div className="cache-info-row">

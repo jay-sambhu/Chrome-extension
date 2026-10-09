@@ -50,6 +50,51 @@ export const VALID_FIELD_TYPES: readonly SupportedFieldType[] = [
   'unknown',
 ];
 
+export interface GeminiModelOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+export const FALLBACK_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+
+export const SUPPORTED_GEMINI_MODELS: readonly GeminiModelOption[] = [
+  {
+    id: 'gemini-2.5-flash',
+    name: 'gemini-2.5-flash',
+    description: 'Fast, highly accurate & cost-effective (Recommended)',
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'gemini-2.5-pro',
+    description: 'Complex reasoning & deep administrative analysis',
+  },
+  {
+    id: 'gemini-1.5-flash',
+    name: 'gemini-1.5-flash',
+    description: 'High quota throughput & stable generation',
+  },
+  {
+    id: 'gemini-3.5-flash-lite',
+    name: 'gemini-3.5-flash-lite',
+    description: 'Ultra-fast lightweight fallback',
+  },
+];
+
+/**
+ * Resolves an incoming model string to a verified supported Gemini model.
+ * Falls back to 'gemini-3.5-flash-lite' if undefined, empty, or unknown.
+ */
+export function resolveGeminiModel(model?: string): string {
+  if (!model || typeof model !== 'string') {
+    return FALLBACK_GEMINI_MODEL;
+  }
+  const clean = model.trim().toLowerCase();
+  const matched = SUPPORTED_GEMINI_MODELS.find((m) => m.id.toLowerCase() === clean);
+  return matched ? matched.id : FALLBACK_GEMINI_MODEL;
+}
+
 /**
  * Validates and sanitizes the outgoing payload so that ONLY minimal
  * form element metadata (name, id, placeholder, label, type, domain) is sent.
@@ -241,7 +286,7 @@ export async function classifyUnknownField(
   }
 
   // 3. Request classification from Gemini API
-  const model = config.model || 'gemini-3.5-flash-lite';
+  const model = resolveGeminiModel(config.model || DEFAULT_GEMINI_MODEL);
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
     config.apiKey
   )}`;
@@ -268,6 +313,14 @@ export async function classifyUnknownField(
     });
 
     if (!response.ok) {
+      if (response.status === 404 && model !== FALLBACK_GEMINI_MODEL) {
+        console.warn(`[Nepal Test Filler] Model ${model} not found (HTTP 404). Falling back to ${FALLBACK_GEMINI_MODEL}...`);
+        return classifyUnknownField(
+          rawPayload,
+          { ...config, model: FALLBACK_GEMINI_MODEL },
+          fetchFn
+        );
+      }
       console.warn(`[Nepal Test Filler] Gemini API responded with status ${response.status}`);
       return {
         fieldType: 'unknown',
@@ -336,11 +389,11 @@ export interface GeminiConnectionTestResult {
  */
 export async function testGeminiConnection(
   apiKey: string,
-  modelName: string = 'gemini-3.5-flash-lite',
+  modelName: string = DEFAULT_GEMINI_MODEL,
   fetchFn: typeof fetch = fetch
 ): Promise<GeminiConnectionTestResult> {
   const trimmedKey = (apiKey || '').trim();
-  const selectedModel = (modelName || '').trim() || 'gemini-3.5-flash-lite';
+  const selectedModel = (modelName || '').trim() || DEFAULT_GEMINI_MODEL;
 
   if (!trimmedKey) {
     return {
@@ -439,7 +492,7 @@ export async function testGeminiConnection(
       return {
         success: false,
         status: 'model_not_found',
-        message: `Model not found (HTTP 404): Model '${selectedModel}' was not found or is unavailable.`,
+        message: `Model not found (HTTP 404): Model '${selectedModel}' was not found or is unavailable. System will fallback to '${FALLBACK_GEMINI_MODEL}'.`,
         model: selectedModel,
         latencyMs,
       };

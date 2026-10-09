@@ -6,6 +6,10 @@ import {
   sanitizePayload,
   testGeminiConnection,
   NEPALI_ADMINISTRATIVE_TOKENS,
+  SUPPORTED_GEMINI_MODELS,
+  DEFAULT_GEMINI_MODEL,
+  FALLBACK_GEMINI_MODEL,
+  resolveGeminiModel,
 } from '../src/services/geminiClassifier';
 import {
   clearClassificationCache,
@@ -502,6 +506,121 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
       expect(result.fieldType).toBe('fullName');
       expect(result.confidence).toBe(0.95);
       expect(result.reasoning).toContain('bujhaune');
+    });
+  });
+
+  describe('Phase 3.3 — Dynamic Model Selector & Fallback Engine', () => {
+    it('defines supported model options with required models and fallback metadata', () => {
+      const modelIds = SUPPORTED_GEMINI_MODELS.map((m) => m.id);
+      expect(modelIds).toContain('gemini-2.5-flash');
+      expect(modelIds).toContain('gemini-2.5-pro');
+      expect(modelIds).toContain('gemini-1.5-flash');
+      expect(modelIds).toContain('gemini-3.5-flash-lite');
+
+      expect(DEFAULT_GEMINI_MODEL).toBe('gemini-2.5-flash');
+      expect(FALLBACK_GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
+    });
+
+    it('resolves valid models accurately with trimming and case insensitivity', () => {
+      expect(resolveGeminiModel('gemini-2.5-flash')).toBe('gemini-2.5-flash');
+      expect(resolveGeminiModel('gemini-2.5-pro')).toBe('gemini-2.5-pro');
+      expect(resolveGeminiModel('gemini-1.5-flash')).toBe('gemini-1.5-flash');
+      expect(resolveGeminiModel('gemini-3.5-flash-lite')).toBe('gemini-3.5-flash-lite');
+      expect(resolveGeminiModel('  GEMINI-2.5-FLASH  ')).toBe('gemini-2.5-flash');
+    });
+
+    it('falls back to gemini-3.5-flash-lite on unknown, empty, or undefined models', () => {
+      expect(resolveGeminiModel(undefined)).toBe('gemini-3.5-flash-lite');
+      expect(resolveGeminiModel('')).toBe('gemini-3.5-flash-lite');
+      expect(resolveGeminiModel('   ')).toBe('gemini-3.5-flash-lite');
+      expect(resolveGeminiModel('non-existent-gpt-model')).toBe('gemini-3.5-flash-lite');
+    });
+
+    it('automatically retries with gemini-3.5-flash-lite if selected model returns 404', async () => {
+      const payload: FieldClassificationPayload = {
+        domain: 'gov.np',
+        name: 'chalani_karyalaya',
+      };
+
+      const requestedUrls: string[] = [];
+
+      const mockFetch: typeof fetch = async (url) => {
+        const urlStr = String(url);
+        requestedUrls.push(urlStr);
+
+        // First attempt with gemini-2.5-pro fails with 404
+        if (urlStr.includes('gemini-2.5-pro')) {
+          return {
+            ok: false,
+            status: 404,
+            json: async () => ({ error: { code: 404, message: 'Model not found' } }),
+          } as any;
+        }
+
+        // Fallback attempt with gemini-3.5-flash-lite succeeds with 200
+        if (urlStr.includes('gemini-3.5-flash-lite')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify({
+                          fieldType: 'referenceNumber',
+                          confidence: 0.9,
+                          reasoning: 'Classified using fallback model',
+                        }),
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+          } as any;
+        }
+
+        return { ok: false, status: 500 } as any;
+      };
+
+      const config: GeminiConfig = {
+        apiKey: 'test-key',
+        enabled: true,
+        model: 'gemini-2.5-pro',
+      };
+
+      const result = await classifyUnknownField(payload, config, mockFetch);
+      expect(requestedUrls.length).toBe(2);
+      expect(requestedUrls[0]).toContain('gemini-2.5-pro');
+      expect(requestedUrls[1]).toContain('gemini-3.5-flash-lite');
+      expect(result.fieldType).toBe('referenceNumber');
+      expect(result.confidence).toBe(0.9);
+    });
+
+    it('testGeminiConnection tests with specified model and handles 404 fallback notification', async () => {
+      let testedUrl = '';
+      const mockFetch: typeof fetch = async (url) => {
+        testedUrl = String(url);
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({
+            error: {
+              code: 404,
+              message: 'Model gemini-2.5-pro not found in region',
+              status: 'NOT_FOUND',
+            },
+          }),
+        } as any;
+      };
+
+      const result = await testGeminiConnection('test-key-xyz', 'gemini-2.5-pro', mockFetch);
+      expect(testedUrl).toContain('models/gemini-2.5-pro:generateContent');
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('model_not_found');
+      expect(result.message).toContain('gemini-3.5-flash-lite');
     });
   });
 });
