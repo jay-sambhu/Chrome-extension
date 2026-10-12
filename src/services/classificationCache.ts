@@ -70,6 +70,18 @@ export async function getCachedClassification(
   return null;
 }
 
+/** Oldest entries beyond this count are evicted so storage use stays bounded. */
+export const MAX_CACHE_ENTRIES = 500;
+
+function pruneCache(cache: Record<string, ClassificationCacheEntry>): Record<string, ClassificationCacheEntry> {
+  const keys = Object.keys(cache);
+  if (keys.length <= MAX_CACHE_ENTRIES) return cache;
+  const newest = keys
+    .sort((a, b) => (cache[b].timestamp || 0) - (cache[a].timestamp || 0))
+    .slice(0, MAX_CACHE_ENTRIES);
+  return Object.fromEntries(newest.map((k) => [k, cache[k]]));
+}
+
 /**
  * Persists a classification result into local storage.
  */
@@ -92,7 +104,7 @@ export async function saveCachedClassification(
       const store = (await chrome.storage.local.get([CACHE_STORAGE_KEY])) as Record<string, any>;
       const cache: Record<string, ClassificationCacheEntry> = store[CACHE_STORAGE_KEY] || {};
       cache[hashKey] = entry;
-      await chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache });
+      await chrome.storage.local.set({ [CACHE_STORAGE_KEY]: pruneCache(cache) });
     } catch (e) {
       console.warn('[Nepal Test Filler] Failed to write classification cache:', e);
     }

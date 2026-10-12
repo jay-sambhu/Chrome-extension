@@ -25,11 +25,37 @@ export interface District {
   headquarter: string;
 }
 
+export type MunicipalityType = 'Metropolitan City' | 'Sub-Metropolitan City' | 'Municipality' | 'Rural Municipality';
+
 export interface Municipality {
   district: string;
   name: string;
-  type: 'Metropolitan City' | 'Sub-Metropolitan City' | 'Municipality' | 'Rural Municipality';
+  /** Official Devanagari name (e.g. काठमाडौँ महानगरपालिका) */
+  nameNp?: string;
+  type: MunicipalityType;
   maxWards: number;
+}
+
+const MUNICIPALITY_SUFFIX_REGEX = /\s+(Sub-Metropolitan City|Metropolitan City|Rural Municipality|Municipality)$/i;
+
+/**
+ * Strips the local-level type suffix: "Butwal Sub-Metropolitan City" -> "Butwal".
+ */
+export function stripMunicipalitySuffix(name: string): string {
+  return name.trim().replace(MUNICIPALITY_SUFFIX_REGEX, '').trim();
+}
+
+/**
+ * Infers the local-level type from a municipality name suffix (defaults to Municipality).
+ */
+export function inferMunicipalityType(name: string): MunicipalityType {
+  const match = MUNICIPALITY_SUFFIX_REGEX.exec(name.trim());
+  if (!match) return 'Municipality';
+  const suffix = match[1].toLowerCase();
+  if (suffix === 'sub-metropolitan city') return 'Sub-Metropolitan City';
+  if (suffix === 'metropolitan city') return 'Metropolitan City';
+  if (suffix === 'rural municipality') return 'Rural Municipality';
+  return 'Municipality';
 }
 
 export interface Occupation {
@@ -107,22 +133,43 @@ export class NepalDataEngine {
     return sample(this.districts);
   }
 
+  public static findDistrict(districtName: string): District | undefined {
+    const clean = districtName.trim().toLowerCase();
+    return this.districts.find((d) => d.name.toLowerCase() === clean);
+  }
+
+  /**
+   * Finds a real local level by name ("Pokhara", "Pokhara Metropolitan City"), optionally
+   * restricted to a district. Matching is case-insensitive and tolerant of a missing type suffix.
+   */
+  public static findMunicipality(name: string, districtName?: string): Municipality | undefined {
+    const clean = name.trim().toLowerCase();
+    if (!clean) return undefined;
+    const base = stripMunicipalitySuffix(clean).toLowerCase();
+    const pool = districtName ? this.getMunicipalitiesByDistrict(districtName) : this.municipalities;
+    const exact = pool.find((m) => m.name.toLowerCase() === clean);
+    if (exact) return exact;
+    const byBase = pool.filter((m) => stripMunicipalitySuffix(m.name).toLowerCase() === base);
+    if (byBase.length === 0) return undefined;
+    // Prefer the same type when the caller supplied a suffix
+    const wantedType = MUNICIPALITY_SUFFIX_REGEX.test(clean) ? inferMunicipalityType(clean) : undefined;
+    return byBase.find((m) => m.type === wantedType) || byBase[0];
+  }
+
+  /**
+   * Returns a real local level of the district. Every one of the 77 districts has entries in
+   * municipalities.json, so names are never synthesized. Throws for unknown districts.
+   */
   public static getRandomMunicipality(districtName: string, preferredType?: string): Municipality {
     const list = this.getMunicipalitiesByDistrict(districtName);
-    if (list.length > 0) {
-      if (preferredType) {
-        const matches = list.filter((m) => m.type.toLowerCase() === preferredType.toLowerCase());
-        if (matches.length > 0) return sample(matches);
-      }
-      return sample(list);
+    if (list.length === 0) {
+      throw new Error(`No local levels found for district "${districtName}"`);
     }
-    // Fallback if rural district not individually listed
-    return {
-      district: districtName,
-      name: `${districtName} ${preferredType || 'Municipality'}`,
-      type: (preferredType as any) || 'Municipality',
-      maxWards: 9,
-    };
+    if (preferredType) {
+      const matches = list.filter((m) => m.type.toLowerCase() === preferredType.toLowerCase());
+      if (matches.length > 0) return sample(matches);
+    }
+    return sample(list);
   }
 
   public static getRandomWard(municipality: Municipality): number {
@@ -155,6 +202,19 @@ export class NepalDataEngine {
       if (match.length > 0) return sample(match);
     }
     return sample(this.companies);
+  }
+
+  /**
+   * Picks a realistic employer for an occupation. Education roles are employed by schools,
+   * colleges and universities (institutions.json), not by companies.
+   */
+  public static getEmployerForOccupation(occupation: Occupation): string {
+    if (occupation.companyType === 'Education') {
+      const title = occupation.title.toLowerCase();
+      const type = title.includes('lecturer') ? sample(['College', 'University']) : title.includes('school') || title.includes('teacher') ? 'School' : undefined;
+      return this.getRandomInstitution(type).name;
+    }
+    return this.getRandomCompany(occupation.companyType).name;
   }
 
   public static getRandomInstitution(type?: string): Institution {

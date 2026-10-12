@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   convertAdToBs,
+  convertBsToAd,
+  getBsMonthDays,
+  getTodayBs,
+  BS_CALENDAR_START_YEAR,
+  BS_CALENDAR_END_YEAR,
   splitBsDate,
   detectDateFormat,
   formatBsDate,
@@ -17,12 +22,71 @@ describe('Phase 1.3: Nepali Calendar (Bikram Sambat) & Datepicker Integration', 
   });
 
   describe('1.3.3 Custom BS Date Formatting & Conversion Helpers', () => {
-    it('converts AD date to approximate BS date correctly', () => {
-      const bs1 = convertAdToBs('1998-04-28'); // after mid-April -> ~2055-01-28
-      expect(bs1).toBe('2055-01-28');
+    it('converts AD dates to exact BS dates using the month-length table', () => {
+      expect(convertAdToBs('1998-04-28')).toBe('2055-01-15'); // 1998-04-14 = 2055-01-01
+      expect(convertAdToBs('2024-01-15')).toBe('2080-10-01'); // Maghe Sankranti = Magh 1
+    });
 
-      const bs2 = convertAdToBs('2024-01-15'); // before mid-April -> ~2080-10-15
-      expect(bs2).toBe('2080-10-15');
+    it('matches known AD <-> BS anchors spread across decades', () => {
+      const anchors: Array<[string, string]> = [
+        ['1913-04-13', '1970-01-01'],
+        ['1918-04-13', '1975-01-01'],
+        ['1943-04-14', '2000-01-01'],
+        ['1990-01-01', '2046-09-17'],
+        ['1998-04-14', '2055-01-01'],
+        ['2000-01-01', '2056-09-17'],
+        ['2010-04-14', '2067-01-01'],
+        ['2019-04-14', '2076-01-01'],
+        ['2023-04-14', '2080-01-01'],
+        ['2024-04-13', '2081-01-01'],
+        ['2025-04-14', '2082-01-01'],
+        ['2026-10-12', '2083-06-26'],
+      ];
+      for (const [ad, bs] of anchors) {
+        expect(convertAdToBs(ad)).toBe(bs);
+        expect(convertBsToAd(bs)).toBe(ad);
+      }
+    });
+
+    it('round-trips every day between 1960 and 2040 AD and never produces invalid BS days', () => {
+      let previous = '';
+      const failures: string[] = [];
+      const start = Date.UTC(1960, 0, 1);
+      const end = Date.UTC(2040, 11, 31);
+      for (let t = start; t <= end; t += 86_400_000) {
+        const ad = new Date(t).toISOString().slice(0, 10);
+        const bs = convertAdToBs(ad);
+        const [y, m, d] = bs.split('-').map(Number);
+        const valid = bs !== '' && d >= 1 && d <= getBsMonthDays(y, m) && bs > previous && convertBsToAd(bs) === ad;
+        if (!valid) failures.push(`${ad} -> ${bs}`);
+        previous = bs;
+      }
+      expect(failures).toEqual([]);
+    });
+
+    it('has plausible month lengths (29-32 days, 365/366-day years) for the full table', () => {
+      for (let y = BS_CALENDAR_START_YEAR; y <= BS_CALENDAR_END_YEAR; y++) {
+        let total = 0;
+        for (let m = 1; m <= 12; m++) {
+          const days = getBsMonthDays(y, m);
+          expect(days).toBeGreaterThanOrEqual(29);
+          expect(days).toBeLessThanOrEqual(32);
+          total += days;
+        }
+        expect([365, 366]).toContain(total);
+      }
+    });
+
+    it('rejects invalid and out-of-range dates', () => {
+      expect(convertAdToBs('invalid')).toBe('');
+      expect(convertAdToBs('2023-02-30')).toBe('');
+      expect(convertAdToBs('1800-01-01')).toBe('');
+      expect(convertBsToAd('2081-13-01')).toBe('');
+      expect(convertBsToAd('2081-01-32')).toBe('');
+    });
+
+    it('derives today in BS from the converter', () => {
+      expect(getTodayBs(new Date(2026, 9, 12))).toBe('2083-06-26');
     });
 
     it('splits BS date into components with month details', () => {

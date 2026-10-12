@@ -128,9 +128,10 @@ describe('Phase 2.4 — Shadow DOM & <iframe> Form Filling', () => {
     });
   });
 
-  describe('Embedded <iframe> Form Fields & Cross-Frame Support', () => {
-    it('penetrates accessible embedded <iframe> to detect payment fields (eSewa / Khalti)', () => {
-      // Create an embedded modal iframe (like eSewa or Khalti checkout dialogue)
+  describe('Embedded <iframe> Form Fields', () => {
+    it('leaves iframe fields to the content script running inside that frame', () => {
+      // The content script is injected with all_frames, so each frame fills its own
+      // document. Traversing into iframes from the parent would fill them twice.
       const iframe = document.createElement('iframe');
       iframe.id = 'esewa-payment-frame';
       document.body.appendChild(iframe);
@@ -141,27 +142,22 @@ describe('Phase 2.4 — Shadow DOM & <iframe> Form Filling', () => {
       if (iframeDoc) {
         iframeDoc.body.innerHTML = `
           <div class="esewa-modal">
-            <h3>eSewa Mobile Wallet Payment</h3>
             <label for="esewa_id">eSewa ID / Mobile Number</label>
             <input type="text" id="esewa_id" name="esewa_id" />
             <input type="password" id="esewa_pwd" name="mpin" placeholder="MPIN" />
           </div>
         `;
 
-        const detected = scanFormFields(document);
-        expect(detected.length).toBe(2);
+        expect(scanFormFields(document).length).toBe(0);
 
-        const esewaField = detected.find((f) => f.name === 'esewa_id');
-        expect(esewaField).toBeTruthy();
-        expect(esewaField?.type).toBe('esewaId');
-
-        const mpinField = detected.find((f) => f.name === 'mpin');
-        expect(mpinField).toBeTruthy();
-        expect(mpinField?.type).toBe('password');
+        const inFrame = scanFormFields(iframeDoc);
+        expect(inFrame.length).toBe(2);
+        expect(inFrame.find((f) => f.name === 'esewa_id')?.type).toBe('esewaId');
+        expect(inFrame.find((f) => f.name === 'mpin')?.type).toBe('password');
       }
     });
 
-    it('fills form fields inside an embedded accessible <iframe> directly from main document', () => {
+    it('fills an iframe document when run inside that frame', () => {
       const iframe = document.createElement('iframe');
       iframe.id = 'khalti-payment-frame';
       document.body.appendChild(iframe);
@@ -182,49 +178,18 @@ describe('Phase 2.4 — Shadow DOM & <iframe> Form Filling', () => {
           fillCategories: { personal: true, contact: true, address: true, professional: true },
         };
 
-        const result = fillPage(person, options, document);
+        expect(fillPage(person, options, document).fieldsFilledCount).toBe(0);
+
+        const result = fillPage(person, options, iframeDoc);
         expect(result.fieldsFilledCount).toBe(2);
 
         const khaltiInput = iframeDoc.querySelector('#khalti_mobile') as HTMLInputElement;
-        expect(khaltiInput.value).toBe(person.esewaId || person.phone);
+        expect(khaltiInput.value).toBe(person.khaltiId || person.phone);
 
-        // Clear form in document also clears iframe inputs
-        const clearRes = clearForm(document);
+        const clearRes = clearForm(iframeDoc);
         expect(clearRes.revertedCount).toBeGreaterThanOrEqual(1);
         expect(khaltiInput.value).toBe('');
       }
-    });
-
-    it('handles cross-frame postMessage events cleanly for subframes', () => {
-      // Simulate subframe message listener
-      let frameFilled = false;
-      const subframeListener = (event: MessageEvent) => {
-        if (event.data?.__nepal_filler_cross_frame__ && event.data.action === 'FILL_PAGE') {
-          frameFilled = true;
-        }
-      };
-
-      window.addEventListener('message', subframeListener);
-
-      const person = generateSyntheticPerson('general');
-      window.postMessage(
-        {
-          __nepal_filler_cross_frame__: true,
-          action: 'FILL_PAGE',
-          person,
-          options: { profile: 'general', fillScript: 'en', fillCategories: { personal: true } },
-        },
-        '*'
-      );
-
-      // Verify dispatch
-      return new Promise<void>((resolve) => {
-        setTimeout(() => {
-          expect(frameFilled).toBe(true);
-          window.removeEventListener('message', subframeListener);
-          resolve();
-        }, 50);
-      });
     });
   });
 });

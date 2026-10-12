@@ -48,7 +48,7 @@ describe('Phase 4.1 Custom Persona Presets Engine', () => {
       expect(qaAdmin?.name).toBe('QA SuperAdmin');
       expect(qaAdmin?.baseProfile).toBe('employee');
       expect(qaAdmin?.designation).toBe('QA Super Administrator');
-      expect(qaAdmin?.emailDomain).toBe('superadmin.qa');
+      expect(qaAdmin?.emailDomain).toBe('superadmin.example.test');
       expect(qaAdmin?.isBuiltin).toBe(true);
 
       const retailer = BUILTIN_PERSONA_PRESETS.find((p) => p.id === 'biratnagar-retailer');
@@ -169,10 +169,11 @@ describe('Phase 4.1 Custom Persona Presets Engine', () => {
       expect(person.jobTitle).toBe('QA Super Administrator');
       expect(person.companyName).toBe('Nepal Enterprise QA Cloud');
       expect(person.department).toBe('Quality Assurance & Security');
-      expect(person.email).toMatch(/@superadmin\.qa$/);
-      expect(person.workEmail).toMatch(/@superadmin\.qa$/);
+      expect(person.email).toMatch(/@superadmin\.example\.test$/);
+      expect(person.workEmail).toMatch(/@superadmin\.example\.test$/);
       expect(person.bloodGroup).toBe('O+');
-      expect(person.bankName).toBe('Nabil Bank');
+      expect(person.bankName).toBe('Nabil Bank Limited');
+      expect(person.devanagari?.bankName).toBe('नबिल बैंक लिमिटेड');
       expect(person.address.district).toBe('Kathmandu');
       expect(person.address.province).toBe('Bagmati Province');
       expect(person.telephone).toMatch(/^01-/); // Kathmandu landline prefix
@@ -194,7 +195,8 @@ describe('Phase 4.1 Custom Persona Presets Engine', () => {
       expect(person.address.province).toBe('Koshi Province');
       expect(person.address.district).toBe('Morang');
       expect(person.address.municipality).toContain('Biratnagar');
-      expect(person.bankName).toBe('Global IME Bank');
+      expect(person.bankName).toBe('Global IME Bank Limited');
+      expect(person.devanagari?.bankName).toBe('ग्लोबल आइएमई बैंक लिमिटेड');
       expect(person.telephone).toMatch(/^021-/); // Morang area code
 
       expect(person.devanagari?.province).toBe('कोशी प्रदेश');

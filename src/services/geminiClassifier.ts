@@ -13,7 +13,10 @@ export const VALID_FIELD_TYPES: readonly SupportedFieldType[] = [
   'lastName',
   'gender',
   'dateOfBirth',
+  'dateOfBirthBS',
+  'dateBS',
   'age',
+  'bloodGroup',
   'email',
   'phone',
   'telephone',
@@ -23,6 +26,8 @@ export const VALID_FIELD_TYPES: readonly SupportedFieldType[] = [
   'ward',
   'tole',
   'address',
+  'permanentAddress',
+  'temporaryAddress',
   'occupation',
   'jobTitle',
   'department',
@@ -31,16 +36,30 @@ export const VALID_FIELD_TYPES: readonly SupportedFieldType[] = [
   'password',
   'studentId',
   'school',
+  'grade',
+  'faculty',
   'guardianName',
   'guardianPhone',
   'employeeId',
+  'salary',
   'panNumber',
   'vatNumber',
   'businessName',
+  'businessType',
   'designation',
   'subject',
   'citizenshipNumber',
+  'citizenshipIssueDistrict',
+  'citizenshipIssueDateBS',
   'nationalId',
+  'passportNumber',
+  'drivingLicenseNumber',
+  'bankName',
+  'bankBranch',
+  'bankAccountNumber',
+  'bankAccountName',
+  'esewaId',
+  'khaltiId',
   'referenceNumber',
   'number',
   'date',
@@ -56,43 +75,36 @@ export interface GeminiModelOption {
   description: string;
 }
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 export const FALLBACK_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+
+/** Abort a Gemini request that has not answered within this window so a fill never hangs. */
+export const GEMINI_REQUEST_TIMEOUT_MS = 8000;
 
 export const SUPPORTED_GEMINI_MODELS: readonly GeminiModelOption[] = [
   {
-    id: 'gemini-2.5-flash',
-    name: 'gemini-2.5-flash',
-    description: 'Fast, highly accurate & cost-effective (Recommended)',
-  },
-  {
-    id: 'gemini-2.5-pro',
-    name: 'gemini-2.5-pro',
-    description: 'Complex reasoning & deep administrative analysis',
-  },
-  {
-    id: 'gemini-1.5-flash',
-    name: 'gemini-1.5-flash',
-    description: 'High quota throughput & stable generation',
-  },
-  {
     id: 'gemini-3.5-flash-lite',
-    name: 'gemini-3.5-flash-lite',
-    description: 'Ultra-fast lightweight fallback',
+    name: 'Gemini 3.5 Flash-Lite',
+    description: 'fastest, recommended',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    description: 'more accurate',
   },
 ];
 
 /**
  * Resolves an incoming model string to a verified supported Gemini model.
- * Falls back to 'gemini-3.5-flash-lite' if undefined, empty, or unknown.
+ * Falls back to the default model if undefined, empty, unknown, or retired.
  */
 export function resolveGeminiModel(model?: string): string {
   if (!model || typeof model !== 'string') {
-    return FALLBACK_GEMINI_MODEL;
+    return DEFAULT_GEMINI_MODEL;
   }
   const clean = model.trim().toLowerCase();
   const matched = SUPPORTED_GEMINI_MODELS.find((m) => m.id.toLowerCase() === clean);
-  return matched ? matched.id : FALLBACK_GEMINI_MODEL;
+  return matched ? matched.id : DEFAULT_GEMINI_MODEL;
 }
 
 /**
@@ -259,6 +271,12 @@ export function normalizeFieldType(rawType?: string): SupportedFieldType {
   return 'unknown';
 }
 
+function timeoutSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS)
+    : undefined;
+}
+
 /**
  * Classifies an unknown form field using Gemini with persistent caching and strict privacy sanitization.
  * Form filling operates completely offline if Gemini is disabled or unconfigured.
@@ -287,9 +305,7 @@ export async function classifyUnknownField(
 
   // 3. Request classification from Gemini API
   const model = resolveGeminiModel(config.model || DEFAULT_GEMINI_MODEL);
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-    config.apiKey
-  )}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
   const prompt = buildClassificationPrompt(sanitized);
 
@@ -298,7 +314,9 @@ export async function classifyUnknownField(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey,
       },
+      signal: timeoutSignal(),
       body: JSON.stringify({
         contents: [
           {
@@ -406,7 +424,7 @@ export async function testGeminiConnection(
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     selectedModel
-  )}:generateContent?key=${encodeURIComponent(trimmedKey)}`;
+  )}:generateContent`;
 
   const startTime = Date.now();
 
@@ -415,7 +433,9 @@ export async function testGeminiConnection(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': trimmedKey,
       },
+      signal: timeoutSignal(),
       body: JSON.stringify({
         contents: [
           {
@@ -492,7 +512,7 @@ export async function testGeminiConnection(
       return {
         success: false,
         status: 'model_not_found',
-        message: `Model not found (HTTP 404): Model '${selectedModel}' was not found or is unavailable. System will fallback to '${FALLBACK_GEMINI_MODEL}'.`,
+        message: `Model not found (HTTP 404): Model '${selectedModel}' was not found or is unavailable. Select a different model.`,
         model: selectedModel,
         latencyMs,
       };

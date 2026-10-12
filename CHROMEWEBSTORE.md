@@ -1,63 +1,88 @@
-# Nepal Test Filler — Chrome Web Store Information
+# Chrome Web Store listing
 
-## Summary & Listing Information
+Reference copy for the Developer Dashboard. Keep it in sync with `manifest.config.ts`.
 
-- **Extension Name**: Nepal Test Filler
-- **Short Description**: Automatically fill web forms with realistic, synthetic Nepal-focused test data.
-- **Detailed Description**:
-  Nepal Test Filler is an offline-first developer and QA tool designed to streamline form testing across web applications. Instead of filling generic placeholder values, it populates registration, profile, and checkout forms with realistic, synthetic Nepali data—including internally consistent provinces, districts, municipalities, and wards, realistic mobile numbers (98/97 prefixes), and tailored test emails.
+## Store listing
 
-  Key Features:
-  - **One-Click Form Filling**: Automatically detects form inputs on any webpage and fills them instantly.
-  - **Framework Compatible**: Works seamlessly with React, Next.js, Vue, and Angular controlled inputs.
-  - **Internally Consistent Addresses**: Matches real Nepal provinces, districts, municipalities, and ward numbers.
-  - **Customizable Profiles & Categories**: Easily toggle personal, contact, address, and professional test datasets.
-  - **100% Local & Private**: All data generation runs directly in your browser without transmitting sensitive form data.
+**Name:** Nepal Test Filler
 
-- **Category**: Developer Tools
-- **Version**: 0.1.0
+**Summary (≤132 chars):**
+Fill web forms with realistic, synthetic Nepali test data: names, addresses, phone numbers, citizenship IDs and BS dates.
 
-## Permissions Justification
+**Category:** Developer Tools
 
-| Permission | Justification |
+**Language:** English
+
+**Description:**
+
+Nepal Test Filler fills web forms with realistic, made-up Nepali data so developers and QA testers stop typing "test test" into registration, KYC and checkout forms.
+
+Every generated person is internally consistent:
+• Name in English or Devanagari (नेपाली), with matching gender
+• Province → district → municipality → ward that actually belong together
+• Permanent and temporary addresses, including "same as permanent" checkboxes
+• Mobile numbers with real NTC / Ncell prefixes and landlines with the right district area code
+• Date of birth in AD and Bikram Sambat (BS), with an age that matches
+• Citizenship number, National ID, PAN/VAT, passport and driving licence numbers in the expected formats
+• Bank, branch and account number, eSewa / Khalti IDs, blood group
+• Student, employee, business owner, teacher and farmer profiles
+
+It works with plain HTML forms and with React, Vue and Angular apps, custom dropdowns, open shadow DOM and embedded iframes. Split BS date dropdowns and popular Nepali date pickers are supported.
+
+How to use it:
+• Click the toolbar icon and press "Fill page"
+• Or press Alt+Shift+F, or right-click the page
+• Or use the small button that appears next to a focused field
+• Undo restores the values the form had before filling
+
+Save your own personas (for example "Pokhara student" or "Biratnagar merchant"), and add per-site rules when a field is not recognised automatically.
+
+Private by default: all data is generated on your device. An optional AI assist (your own Google Gemini API key) can classify fields the built-in rules don't recognise; it is off unless you turn it on.
+
+All generated data is synthetic. Emails use reserved test domains that cannot receive mail. Use it only on forms you are allowed to test.
+
+## Single purpose
+
+Fill web forms with synthetic Nepali test data for software development and QA testing.
+
+## Permission justifications
+
+| Permission | Why it is needed |
 | :--- | :--- |
-| `storage` | Required to save user preferences, selected profiles, and custom field mapping rules locally. |
-| `activeTab` | Required to detect form fields and inject synthetic test data into the currently active tab when the user clicks "Fill Page". |
-| `scripting` | Required to programmatically inject the form-filling engine if the page was loaded before the extension was installed. |
+| Content script on all sites (`<all_urls>`) | Forms can be on any site the developer is testing (localhost, staging, production). The script detects form fields and fills them only when the user acts (toolbar button, shortcut, context menu or the in-page button next to a focused field). It reads field labels and attributes, not page content in general, and sends nothing anywhere. |
+| `storage` | Saves preferences, custom personas, per-site field rules and the optional API key on the device. |
+| `activeTab` | Lets the toolbar button and shortcuts act on the current tab. |
+| `scripting` | Injects the form filler into tabs that were already open before the extension was installed or updated, so the user does not have to reload them. |
+| `contextMenus` | Adds "Fill form with Nepali test data" and "Undo fill" to the right-click menu. |
 
-## Host Permissions
-None. All form filling operates strictly through the user's explicit interaction via `activeTab`.
+**Remote code:** None. All code ships in the package. The optional AI assist sends a JSON request to the Google Gemini API and receives a field category name back; no code is downloaded.
 
-## Privacy & Data Use
-- **Single Purpose**: Form autofilling with synthetic Nepal-focused test data.
-- **Data Collection**: None. The extension does not collect, track, or transmit any user data or webpage form values.
-- **Offline First**: All synthetic personas and address trees are generated completely offline using local algorithms.
+## Privacy practices (Dashboard → Privacy tab)
 
-## Store Marketing & Visual Assets
+**Data collected:** Website content. This applies only when the user turns on AI assist and provides their own API key: for form fields the built-in rules cannot recognise, the field's name, id, placeholder, label text, input type and the site's hostname are sent to Google's Gemini API to classify the field. Values typed by the user and the generated test data are never sent.
 
-All assets are located in [`store-assets/`](file:///home/devxgamer/Nepali%20Filler/store-assets) and meet Google Chrome Web Store upload guidelines:
+Certifications to tick:
+- I do not sell or transfer user data to third parties, outside of the approved use cases.
+- I do not use or transfer user data for purposes that are unrelated to my item's single purpose.
+- I do not use or transfer user data to determine creditworthiness or for lending purposes.
 
-### Store Screenshots (1280×800, 16:10 Aspect Ratio)
-1. **`screenshot-1-popup-fill.png`**: 1-Click Form Filling, Persona Preview (General Citizen), Archetype Selection & JSON Export.
-2. **`screenshot-2-loksewa-autofill.png`**: Loksewa Civil Service Examination Form populated with Devanagari Unicode name, BS Date of Birth, Citizenship number, and hierarchically consistent permanent address.
-3. **`screenshot-3-fintech-banking.png`**: FinTech & Digital Wallet checkout (eSewa / Khalti wallet ID, Commercial Bank selection, Account number, PAN/VAT).
-4. **`screenshot-4-domain-mapping.png`**: Options UI Domain Rules & Custom Field Overrides with custom selectors and shadow DOM support.
-5. **`screenshot-5-theme-toggle.png`**: Dual modern themes comparison showcasing Dark Slate & Crimson theme alongside Clean Light mode.
+**Privacy policy URL:** host `PRIVACY.md` (for example on GitHub Pages or a public repo) and paste the link.
 
-### Promotional Banners
-1. **Small Promo Tile (`promo-small-440x280.png`)**: `440×280` px with crimson & slate branding, Nepal flag, and core developer value proposition.
-2. **Marquee / Large Promo Tile (`promo-marquee-920x680.png`)**: `920×680` px high-resolution hero promotional banner for Chrome Web Store featured listing.
+## Assets
 
-## Release Packaging for Store Upload
+| Asset | Size | Notes |
+| :--- | :--- | :--- |
+| Icon | 128×128 | `public/icons/icon-128.png` (source: `store-assets/icon.svg`) |
+| Screenshots | 1280×800 | `store-assets/screenshot-1-fill.png`, `-2-devanagari`, `-3-banking`, `-4-inline-button`, `-5-personas`. Real captures of the built extension; retake them if the UI changes. |
+| Small promo tile | 440×280 | `store-assets/promo-small-440x280.png` |
+| Marquee promo tile | 1400×560 | Optional, not included |
 
-To generate a production-ready `.zip` package for the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devcenter):
+## Release
 
 ```bash
 npm run package
 ```
 
-This command will:
-1. Compile the production bundle (`dist/`).
-2. Verify that `manifest.json`, popup HTML, options HTML, and all icon sizes (`16`, `48`, `128`) are present.
-3. Package all assets into `nepal-test-filler-v0.1.0.zip` with `manifest.json` at the root of the archive.
+This builds from scratch, checks that the manifest, pages and icons are present, and writes `nepal-test-filler-v<version>.zip` with `manifest.json` at the root. Upload that zip in the Developer Dashboard.
 
+Before each release: bump `version` in `package.json` (the manifest reads it), run `npm test`, then load `dist/` unpacked in Chrome and try `demo/index.html`.

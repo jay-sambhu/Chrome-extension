@@ -1,12 +1,15 @@
 import { defineManifest } from '@crxjs/vite-plugin';
+import pkg from './package.json' with { type: 'json' };
 
 export default defineManifest(() => ({
   manifest_version: 3,
   name: 'Nepal Test Filler',
-  version: '0.1.0',
-  description: 'Automatically fills web forms with realistic synthetic Nepal-focused test data.',
+  version: pkg.version,
+  description: 'Fill web forms with realistic, synthetic Nepali test data: names, addresses, phone numbers, citizenship IDs and BS dates.',
+  minimum_chrome_version: '116',
   icons: {
     '16': 'icons/icon-16.png',
+    '32': 'icons/icon-32.png',
     '48': 'icons/icon-48.png',
     '128': 'icons/icon-128.png',
   },
@@ -15,8 +18,7 @@ export default defineManifest(() => ({
     default_title: 'Nepal Test Filler',
     default_icon: {
       '16': 'icons/icon-16.png',
-      '48': 'icons/icon-48.png',
-      '128': 'icons/icon-128.png',
+      '32': 'icons/icon-32.png',
     },
   },
   background: {
@@ -38,23 +40,30 @@ export default defineManifest(() => ({
         default: 'Alt+Shift+F',
         mac: 'Alt+Shift+F',
       },
-      description: 'Instantly fill active form with Nepali test data',
+      description: 'Fill the current page',
     },
     'regenerate-fill': {
       suggested_key: {
         default: 'Alt+Shift+R',
         mac: 'Alt+Shift+R',
       },
-      description: 'Regenerate synthetic person and refill form',
+      description: 'Fill the current page with a new person',
     },
     'undo-fill': {
       suggested_key: {
         default: 'Alt+Shift+U',
         mac: 'Alt+Shift+U',
       },
-      description: 'Undo fill or revert form to pre-fill state',
+      description: 'Undo the last fill',
     },
   },
+  web_accessible_resources: [
+    {
+      // Shown by the in-page quick-fill badge; emoji flags render as "NP" on Windows.
+      resources: ['icons/icon-32.png'],
+      matches: ['<all_urls>'],
+    },
+  ],
   options_ui: {
     page: 'src/options/index.html',
     open_in_tab: true,

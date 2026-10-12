@@ -125,28 +125,46 @@ describe('Phase 2.2 — Inline Floating Quick-Fill Trigger (Badge)', () => {
       expect(badge?.style.display).toBe('flex');
     });
 
-    it('displays badge on mouseover for fillable form fields', () => {
+    it('does not show the badge on mere hover', () => {
       const textarea = document.createElement('textarea');
       textarea.name = 'address';
       document.body.appendChild(textarea);
 
-      vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue({
-        top: 200,
-        right: 400,
-        bottom: 280,
-        left: 200,
-        width: 200,
-        height: 80,
-        x: 200,
-        y: 200,
-        toJSON: () => {},
-      });
-
       textarea.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 
       const badge = document.getElementById('__nepal_filler_floating_badge');
-      expect(badge).toBeTruthy();
+      expect(badge === null || badge.style.display !== 'flex').toBe(true);
+    });
+
+    it('never shows the badge on password or search fields', () => {
+      for (const type of ['password', 'search']) {
+        const input = document.createElement('input');
+        input.type = type;
+        document.body.appendChild(input);
+        vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({
+          top: 10, right: 210, bottom: 40, left: 10, width: 200, height: 30, x: 10, y: 10, toJSON: () => {},
+        });
+        input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+      }
+      const badge = document.getElementById('__nepal_filler_floating_badge');
+      expect(badge === null || badge.style.display !== 'flex').toBe(true);
+    });
+
+    it('hides the badge after the field loses focus', async () => {
+      const input = document.createElement('input');
+      input.name = 'full_name';
+      document.body.appendChild(input);
+      vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({
+        top: 10, right: 210, bottom: 40, left: 10, width: 200, height: 30, x: 10, y: 10, toJSON: () => {},
+      });
+
+      input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+      const badge = document.getElementById('__nepal_filler_floating_badge');
       expect(badge?.style.display).toBe('flex');
+
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: document.body }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(badge?.style.display).toBe('none');
     });
 
     it('ignores disabled or readonly inputs', () => {
@@ -238,8 +256,8 @@ describe('Phase 2.2 — Inline Floating Quick-Fill Trigger (Badge)', () => {
 
       fillFormBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-      // Allow async fill handlers
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // The generator is loaded on demand, so wait for the fill rather than a fixed delay
+      await vi.waitFor(() => expect(nameInput.value).not.toBe(''), { timeout: 5000 });
 
       expect(nameInput.value).not.toBe('');
       expect((form.querySelector('#email') as HTMLInputElement).value).not.toBe('');
@@ -279,7 +297,8 @@ describe('Phase 2.2 — Inline Floating Quick-Fill Trigger (Badge)', () => {
 
       fillFieldBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // The generator is loaded on demand, so wait for the fill rather than a fixed delay
+      await vi.waitFor(() => expect(citInput.value).not.toBe(''), { timeout: 5000 });
 
       expect(citInput.value).not.toBe('');
       expect(panInput.value).toBe(''); // untouched
@@ -312,7 +331,8 @@ describe('Phase 2.2 — Inline Floating Quick-Fill Trigger (Badge)', () => {
       badge?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       const fillFormBtn = document.querySelector('[data-action="fill-form"]') as HTMLElement;
       fillFormBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // The generator is loaded on demand, so wait for the fill rather than a fixed delay
+      await vi.waitFor(() => expect(input.value).not.toBe('Original Value'), { timeout: 5000 });
 
       expect(input.value).not.toBe('Original Value');
 

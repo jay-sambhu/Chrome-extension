@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   User,
   GraduationCap,
@@ -6,26 +6,30 @@ import {
   Building2,
   BookOpen,
   Wheat,
-  Key,
-  Database,
+  SlidersHorizontal,
+  Users,
+  Globe,
+  Bot,
   Keyboard,
+  Database,
   Download,
   Upload,
   Trash2,
   CheckCircle2,
-  Save,
-  Globe,
-  RefreshCw,
-  Activity,
   AlertCircle,
   Plus,
-  Edit3,
-  Sparkles,
+  Pencil,
+  RefreshCw,
   RotateCcw,
   Copy,
   Sun,
   Moon,
   Laptop,
+  Eye,
+  EyeOff,
+  Loader2,
+  ExternalLink,
+  Check,
 } from 'lucide-react';
 import {
   ThemePreference,
@@ -34,14 +38,10 @@ import {
   saveThemePreference,
   setupSystemThemeListener,
 } from '../utils/themeManager';
-import { ProfileType, FillScript, SyntheticPerson } from '../types';
+import { ProfileType, FillScript, SyntheticPerson, PersonaPreset } from '../types';
 import { generateSyntheticPerson } from '../generator/personGenerator';
+import { serializePersonaToJson, copyTextToClipboard } from '../utils/personaExport';
 import {
-  serializePersonaToJson,
-  copyTextToClipboard,
-} from '../utils/personaExport';
-import {
-  PersonaPreset,
   getPersonaPresets,
   savePersonaPreset,
   deletePersonaPreset,
@@ -53,81 +53,204 @@ import { NepalDataEngine } from '../generator/nepalDataEngine';
 import {
   getAllDomainMappings,
   deleteDomainRule,
+  deleteDomainMapping,
   saveDomainRule,
   DomainMappingConfig,
+  FieldMappingRule,
 } from '../services/domainMapping';
-import {
-  getCacheStats,
-  clearClassificationCache,
-} from '../services/classificationCache';
+import { getCacheStats, clearClassificationCache } from '../services/classificationCache';
 import {
   testGeminiConnection,
   GeminiConnectionTestResult,
   SUPPORTED_GEMINI_MODELS,
   DEFAULT_GEMINI_MODEL,
-  FALLBACK_GEMINI_MODEL,
   resolveGeminiModel,
 } from '../services/geminiClassifier';
+import {
+  DEFAULT_FILL_CATEGORIES,
+  FillCategories,
+  PROFILE_TYPES,
+  loadFillSettings,
+  saveCurrentPerson,
+  saveSettings,
+} from '../services/settings';
+import { fieldTypeLabel } from '../utils/fieldTypeLabels';
 import './App.css';
 
-type SettingsTab = 'profiles' | 'mappings' | 'ai' | 'shortcuts' | 'backup';
+type SettingsTab = 'general' | 'personas' | 'mappings' | 'ai' | 'shortcuts' | 'backup';
+type Toast = { kind: 'success' | 'error'; text: string } | null;
 
-const PROFILES: Array<{ id: ProfileType; label: string; desc: string; icon: React.ReactNode }> = [
-  { id: 'general', label: 'General Citizen', desc: 'Standard Nepali citizen with full geographic address', icon: <User size={18} /> },
-  { id: 'student', label: 'Student', desc: 'Roll numbers, colleges, academic faculty & guardian contacts', icon: <GraduationCap size={18} /> },
-  { id: 'employee', label: 'Employee', desc: 'Corporate email, staff ID, PAN number & salary', icon: <Briefcase size={18} /> },
-  { id: 'business', label: 'Business Owner', desc: 'Enterprise registration, VAT/PAN & registered office', icon: <Building2 size={18} /> },
-  { id: 'teacher', label: 'Teacher / Faculty', desc: 'Academic departments, subjects & lecturer credentials', icon: <BookOpen size={18} /> },
-  { id: 'farmer', label: 'Farmer / Agriculture', desc: 'Rural municipality focus, cooperatives & crop specialties', icon: <Wheat size={18} /> },
+const NAV: Array<{ id: SettingsTab; label: string; icon: React.ReactNode }> = [
+  { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} /> },
+  { id: 'personas', label: 'Personas', icon: <Users size={16} /> },
+  { id: 'mappings', label: 'Site rules', icon: <Globe size={16} /> },
+  { id: 'ai', label: 'AI assist', icon: <Bot size={16} /> },
+  { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
+  { id: 'backup', label: 'Backup', icon: <Database size={16} /> },
 ];
 
-export function App() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('profiles');
-  const [defaultProfile, setDefaultProfile] = useState<ProfileType>('general');
-  const [defaultScript, setDefaultScript] = useState<FillScript>('en');
-  const [fillCategories, setFillCategories] = useState({
-    personal: true,
-    contact: true,
-    address: true,
-    professional: true,
-  });
-  const [enableFloatingBadge, setEnableFloatingBadge] = useState<boolean>(true);
-  const [enableSessionPersistence, setEnableSessionPersistence] = useState<boolean>(true);
+const PROFILES: Array<{ id: ProfileType; label: string; desc: string; icon: React.ReactNode }> = [
+  { id: 'general', label: 'General citizen', desc: 'Full name, contact and a complete Nepali address', icon: <User size={18} /> },
+  { id: 'student', label: 'Student', desc: 'Roll number, college, faculty and guardian details', icon: <GraduationCap size={18} /> },
+  { id: 'employee', label: 'Employee', desc: 'Work email, staff ID, PAN and salary', icon: <Briefcase size={18} /> },
+  { id: 'business', label: 'Business owner', desc: 'Registered business, PAN/VAT and office address', icon: <Building2 size={18} /> },
+  { id: 'teacher', label: 'Teacher', desc: 'Subject, faculty and institution', icon: <BookOpen size={18} /> },
+  { id: 'farmer', label: 'Farmer', desc: 'Rural municipality, cooperative and main crop', icon: <Wheat size={18} /> },
+];
 
-  // AI settings
+const CATEGORY_INFO: Array<{ id: keyof FillCategories; label: string; desc: string }> = [
+  { id: 'personal', label: 'Personal', desc: 'Name, gender, date of birth, IDs, bank details' },
+  { id: 'contact', label: 'Contact', desc: 'Mobile, landline, email' },
+  { id: 'address', label: 'Address', desc: 'Province, district, municipality, ward, tole' },
+  { id: 'professional', label: 'Work & study', desc: 'Occupation, company, school, PAN/VAT' },
+];
+
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'] as const;
+
+const EMPTY_PRESET: Partial<PersonaPreset> = {
+  name: '',
+  description: '',
+  baseProfile: 'employee',
+  gender: 'Random',
+  preferredScript: 'en',
+};
+
+function hasStorage(): boolean {
+  return typeof chrome !== 'undefined' && Boolean(chrome.storage?.local);
+}
+
+function extensionVersion(): string {
+  try {
+    return chrome.runtime.getManifest().version;
+  } catch {
+    return '';
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isValidPreset(value: unknown): value is PersonaPreset {
+  return (
+    isPlainObject(value) &&
+    typeof value.name === 'string' &&
+    value.name.trim().length > 0 &&
+    PROFILE_TYPES.includes(value.baseProfile as ProfileType)
+  );
+}
+
+function isValidRule(value: unknown): value is FieldMappingRule {
+  return isPlainObject(value) && typeof value.selectorOrName === 'string' && typeof value.targetType === 'string';
+}
+
+function Switch({
+  checked,
+  onChange,
+  label,
+  id,
+  disabled = false,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  id: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      className={`switch ${checked ? 'on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="switch-thumb" />
+    </button>
+  );
+}
+
+export function App() {
+  const [activeTab, setActiveTabState] = useState<SettingsTab>(() => {
+    const hash = typeof location !== 'undefined' ? location.hash.slice(1) : '';
+    return NAV.some((n) => n.id === hash) ? (hash as SettingsTab) : 'general';
+  });
+  const setActiveTab = (tab: SettingsTab) => {
+    setActiveTabState(tab);
+    history.replaceState(null, '', `#${tab}`);
+  };
+  const [toast, setToast] = useState<Toast>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // General
+  const [defaultProfile, setDefaultProfile] = useState<ProfileType>('general');
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [defaultScript, setDefaultScript] = useState<FillScript>('en');
+  const [fillCategories, setFillCategories] = useState<FillCategories>(DEFAULT_FILL_CATEGORIES);
+  const [enableFloatingBadge, setEnableFloatingBadge] = useState(true);
+  const [enableSessionPersistence, setEnableSessionPersistence] = useState(true);
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+
+  // Personas
+  const [presets, setPresets] = useState<PersonaPreset[]>([]);
+  const [editingPreset, setEditingPreset] = useState<Partial<PersonaPreset> | null>(null);
+  const [previewPerson, setPreviewPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson('general'));
+  const [previewSource, setPreviewSource] = useState<string>('General citizen');
+
+  // Site rules
+  const [allMappings, setAllMappings] = useState<Record<string, DomainMappingConfig>>({});
+
+  // AI
   const [aiEnabled, setAiEnabled] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [savedApiKey, setSavedApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_GEMINI_MODEL);
   const [cacheCount, setCacheCount] = useState(0);
   const [testStatus, setTestStatus] = useState<GeminiConnectionTestResult | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
-  // Domain mappings
-  const [allMappings, setAllMappings] = useState<Record<string, DomainMappingConfig>>({});
+  // Shortcuts
+  const [commands, setCommands] = useState<chrome.commands.Command[]>([]);
 
-  // Preview synthetic person
-  const [previewPerson, setPreviewPerson] = useState<SyntheticPerson>(generateSyntheticPerson('general'));
+  const showToast = useCallback((text: string, kind: 'success' | 'error' = 'success') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ kind, text });
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }, []);
 
-  // Persona presets state
-  const [presets, setPresets] = useState<PersonaPreset[]>([]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [isEditingPreset, setIsEditingPreset] = useState(false);
-  const [editingPreset, setEditingPreset] = useState<Partial<PersonaPreset>>({
-    baseProfile: 'employee',
-    gender: 'Random',
-    preferredScript: 'en',
-  });
+  const loadPresets = useCallback(async () => setPresets(await getPersonaPresets()), []);
+  const loadDomainMappings = useCallback(async () => setAllMappings(await getAllDomainMappings()), []);
+  const refreshCacheCount = useCallback(async () => setCacheCount((await getCacheStats()).count), []);
 
-  // Theme preference state
-  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const loadSettings = useCallback(async () => {
+    const settings = await loadFillSettings();
+    setDefaultProfile(settings.profile);
+    setSelectedPresetId(settings.presetId);
+    setDefaultScript(settings.fillScript);
+    setFillCategories(settings.fillCategories);
+    setAiEnabled(settings.aiEnabled);
+    setPreviewPerson(generateSyntheticPerson(settings.profile));
+    setPreviewSource(PROFILES.find((p) => p.id === settings.profile)?.label || 'General citizen');
 
-  // Notification feedback
-  const [notification, setNotification] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
-  };
+    if (hasStorage()) {
+      const data = (await chrome.storage.local.get([
+        'geminiApiKey',
+        'geminiModel',
+        'enableFloatingBadge',
+        'enableSessionPersistence',
+      ])) as Record<string, unknown>;
+      setEnableFloatingBadge(data.enableFloatingBadge !== false);
+      setEnableSessionPersistence(data.enableSessionPersistence !== false);
+      const key = typeof data.geminiApiKey === 'string' ? data.geminiApiKey : '';
+      setApiKey(key);
+      setSavedApiKey(key);
+      setSelectedModel(resolveGeminiModel(data.geminiModel as string | undefined));
+    }
+  }, []);
 
   useEffect(() => {
     loadSettings();
@@ -139,210 +262,166 @@ export function App() {
       setThemePreference(pref);
       applyThemeToDocument(pref);
     });
-
     const cleanupTheme = setupSystemThemeListener(() => {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(['theme'], (res) => {
-          const currentPref = (res?.theme as ThemePreference) || 'system';
-          if (currentPref === 'system') {
-            applyThemeToDocument('system');
-          }
-        });
-      } else {
-        applyThemeToDocument('system');
-      }
+      loadThemePreference().then((pref) => {
+        if (pref === 'system') applyThemeToDocument('system');
+      });
     });
+
+    if (typeof chrome !== 'undefined' && chrome.commands?.getAll) {
+      chrome.commands.getAll((cmds) => setCommands(cmds.filter((c) => c.name !== '_execute_action')));
+    }
+
+    // Keep this page in sync when the popup changes the same settings.
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== 'local') return;
+      if (changes.personaPresets) loadPresets();
+      if (changes.nepal_filler_domain_mappings) loadDomainMappings();
+      if (changes.selectedProfile || changes.selectedPresetId || changes.fillScript || changes.fillCategories) {
+        loadFillSettings().then((s) => {
+          setDefaultProfile(s.profile);
+          setSelectedPresetId(s.presetId);
+          setDefaultScript(s.fillScript);
+          setFillCategories(s.fillCategories);
+        });
+      }
+    };
+    if (hasStorage()) chrome.storage.onChanged.addListener(onChanged);
 
     return () => {
       cleanupTheme();
+      if (hasStorage()) chrome.storage.onChanged.removeListener(onChanged);
     };
-  }, []);
+  }, [loadSettings, loadPresets, refreshCacheCount, loadDomainMappings]);
 
-  const handleThemeChange = async (newTheme: ThemePreference) => {
-    setThemePreference(newTheme);
-    applyThemeToDocument(newTheme);
-    await saveThemePreference(newTheme);
-    showToast(`Theme updated to ${newTheme === 'system' ? 'System Default' : newTheme === 'dark' ? 'Dark Mode' : 'Light Mode'}.`);
+  const persist = async (values: Record<string, unknown>, message = 'Saved') => {
+    await saveSettings(values);
+    showToast(message);
   };
 
-  const loadPresets = async () => {
-    const list = await getPersonaPresets();
-    setPresets(list);
+  const handleThemeChange = async (theme: ThemePreference) => {
+    setThemePreference(theme);
+    applyThemeToDocument(theme);
+    await saveThemePreference(theme);
   };
 
-  const loadSettings = async () => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      const data = (await chrome.storage.local.get([
-        'selectedProfile',
-        'fillScript',
-        'fillCategories',
-        'aiEnabled',
-        'geminiApiKey',
-        'geminiModel',
-        'enableFloatingBadge',
-        'enableSessionPersistence',
-        'selectedPresetId',
-      ])) as Record<string, any>;
+  // ── Personas ──────────────────────────────────────────────
 
-      if (data.selectedPresetId) {
-        setSelectedPresetId(data.selectedPresetId);
-      }
+  const handleProfileSelect = async (p: ProfileType) => {
+    setDefaultProfile(p);
+    setSelectedPresetId(null);
+    const person = generateSyntheticPerson(p);
+    setPreviewPerson(person);
+    setPreviewSource(PROFILES.find((x) => x.id === p)?.label || p);
+    await saveCurrentPerson(person);
+    await persist({ selectedProfile: p, selectedPresetId: null }, 'Default persona updated');
+  };
 
-      if (data.selectedProfile) {
-        setDefaultProfile(data.selectedProfile);
-        setPreviewPerson(generateSyntheticPerson(data.selectedProfile));
-      }
-      if (data.fillScript === 'en' || data.fillScript === 'np') {
-        setDefaultScript(data.fillScript);
-      }
-      if (data.fillCategories) {
-        setFillCategories(data.fillCategories);
-      }
-      if (data.enableFloatingBadge !== undefined) {
-        setEnableFloatingBadge(Boolean(data.enableFloatingBadge));
-      }
-      if (data.enableSessionPersistence !== undefined) {
-        setEnableSessionPersistence(Boolean(data.enableSessionPersistence));
-      }
-      if (data.aiEnabled !== undefined) {
-        setAiEnabled(Boolean(data.aiEnabled));
-      }
-      if (data.geminiApiKey) {
-        setApiKey(data.geminiApiKey);
-      }
-      if (data.geminiModel) {
-        setSelectedModel(resolveGeminiModel(data.geminiModel));
-      }
+  const handleUsePreset = async (preset: PersonaPreset) => {
+    setSelectedPresetId(preset.id);
+    setDefaultProfile(preset.baseProfile);
+    const person = generatePersonFromPreset(preset);
+    setPreviewPerson(person);
+    setPreviewSource(preset.name);
+    await saveCurrentPerson(person);
+    const values: Record<string, unknown> = { selectedProfile: preset.baseProfile, selectedPresetId: preset.id };
+    if (preset.preferredScript) {
+      values.fillScript = preset.preferredScript;
+      setDefaultScript(preset.preferredScript);
     }
-  };
-
-  const loadDomainMappings = async () => {
-    const mappings = await getAllDomainMappings();
-    setAllMappings(mappings);
-  };
-
-  const handleStartCreatePreset = () => {
-    setEditingPreset({
-      name: '',
-      description: '',
-      baseProfile: 'employee',
-      gender: 'Random',
-      preferredScript: 'en',
-      province: '',
-      district: '',
-      municipality: '',
-      companyName: '',
-      designation: '',
-      department: '',
-      school: '',
-      faculty: '',
-      grade: '',
-      businessName: '',
-      businessType: '',
-      bloodGroup: undefined,
-      bankName: '',
-      emailDomain: '',
-    });
-    setIsEditingPreset(true);
-  };
-
-  const handleStartEditPreset = (preset: PersonaPreset) => {
-    setEditingPreset({ ...preset });
-    setIsEditingPreset(true);
+    await persist(values, `Now using "${preset.name}"`);
   };
 
   const handleSavePreset = async () => {
-    if (!editingPreset.name || editingPreset.name.trim() === '') {
-      alert('Please enter a name for the persona preset.');
+    if (!editingPreset) return;
+    const name = (editingPreset.name || '').trim();
+    if (!name) {
+      showToast('Give the preset a name first.', 'error');
       return;
     }
-    const saved = await savePersonaPreset({
-      ...editingPreset,
-      name: editingPreset.name.trim(),
-      baseProfile: editingPreset.baseProfile || 'general',
-    });
+    const saved = await savePersonaPreset({ ...editingPreset, name, baseProfile: editingPreset.baseProfile || 'general' });
     await loadPresets();
-    setIsEditingPreset(false);
-    showToast(`Saved preset "${saved.name}" successfully!`);
+    setEditingPreset(null);
+    showToast(`Saved "${saved.name}"`);
   };
 
-  const handleDeletePreset = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete preset "${name}"?`)) return;
-    const ok = await deletePersonaPreset(id);
-    if (ok) {
+  const handleDeletePreset = async (preset: PersonaPreset) => {
+    if (!confirm(`Delete the preset "${preset.name}"?`)) return;
+    if (await deletePersonaPreset(preset.id)) {
+      if (selectedPresetId === preset.id) {
+        setSelectedPresetId(null);
+        await saveSettings({ selectedPresetId: null });
+      }
       await loadPresets();
-      showToast(`Deleted preset "${name}".`);
-    } else {
-      alert('Cannot delete built-in presets.');
+      showToast(`Deleted "${preset.name}"`);
     }
   };
 
-  const handleResetPresets = async () => {
-    if (!confirm('Reset all presets to default built-ins? Any custom presets will be lost.')) return;
+  const handleRestoreBuiltins = async () => {
+    if (!confirm('Restore the built-in presets to their original settings? Your own presets are kept.')) return;
+    const custom = presets.filter((p) => !p.isBuiltin);
     await resetDefaultPresets();
+    for (const p of custom) await savePersonaPreset(p);
     await loadPresets();
-    showToast('Reset presets to default successfully.');
+    showToast('Built-in presets restored');
   };
 
-  const handleTestPreset = (preset: PersonaPreset) => {
-    const p = generatePersonFromPreset(preset);
-    setSelectedPresetId(preset.id);
-    setPreviewPerson(p);
-    setDefaultProfile(preset.baseProfile);
-    showToast(`Generated live preview from "${preset.name}"!`);
+  const regeneratePreview = () => {
+    const preset = presets.find((p) => p.id === selectedPresetId);
+    setPreviewPerson(preset ? generatePersonFromPreset(preset) : generateSyntheticPerson(defaultProfile));
   };
 
   const handleCopyPreviewJson = async () => {
-    try {
-      const jsonStr = serializePersonaToJson(previewPerson, { script: defaultScript });
-      const success = await copyTextToClipboard(jsonStr);
-      if (success) {
-        showToast('Copied persona JSON to clipboard for Postman/Swagger!');
-      } else {
-        alert('Could not copy to clipboard.');
-      }
-    } catch {
-      alert('Failed to copy persona JSON.');
-    }
+    const ok = await copyTextToClipboard(serializePersonaToJson(previewPerson, { script: defaultScript }));
+    showToast(ok ? 'Copied as JSON' : 'Could not copy to the clipboard', ok ? 'success' : 'error');
   };
 
-  const refreshCacheCount = async () => {
-    const stats = await getCacheStats();
-    setCacheCount(stats.count);
+  // ── Site rules ────────────────────────────────────────────
+
+  const handleDeleteRule = async (domain: string, selectorOrName: string) => {
+    await deleteDomainRule(domain, selectorOrName);
+    await loadDomainMappings();
+    showToast(`Removed rule from ${domain}`);
   };
 
-  const saveGeneralSettings = async () => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({
-        selectedProfile: defaultProfile,
-        fillScript: defaultScript,
-        fillCategories,
-        enableFloatingBadge,
-        enableSessionPersistence,
-        theme: themePreference,
-      });
-      showToast('General preferences saved successfully!');
-    }
+  const handleDeleteDomain = async (domain: string) => {
+    if (!confirm(`Remove all rules for ${domain}?`)) return;
+    await deleteDomainMapping(domain);
+    await loadDomainMappings();
+    showToast(`Removed all rules for ${domain}`);
   };
 
-  const saveAiSettings = async () => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({
-        aiEnabled,
-        geminiAiClassificationEnabled: aiEnabled,
-        geminiApiKey: apiKey.trim(),
-        geminiModel: selectedModel,
-      });
-      showToast('AI classification settings updated!');
+  // ── AI ────────────────────────────────────────────────────
+
+  const handleAiToggle = async (enabled: boolean) => {
+    setAiEnabled(enabled);
+    await persist({ geminiAiClassificationEnabled: enabled }, enabled ? 'AI assist turned on' : 'AI assist turned off');
+  };
+
+  const handleSaveKey = async () => {
+    const key = apiKey.trim();
+    setApiKey(key);
+    setSavedApiKey(key);
+    setTestStatus(null);
+    if (!key && aiEnabled) {
+      setAiEnabled(false);
+      await persist({ geminiApiKey: '', geminiAiClassificationEnabled: false }, 'API key removed, AI assist turned off');
+      return;
     }
+    await persist({ geminiApiKey: key }, key ? 'API key saved' : 'API key removed');
+  };
+
+  const handleModelChange = async (model: string) => {
+    setSelectedModel(model);
+    setTestStatus(null);
+    await persist({ geminiModel: model }, 'Model updated');
   };
 
   const handleTestConnection = async () => {
     setIsTesting(true);
     setTestStatus(null);
     try {
-      const res = await testGeminiConnection(apiKey, selectedModel);
-      setTestStatus(res);
+      setTestStatus(await testGeminiConnection(apiKey, selectedModel));
     } catch (err) {
       setTestStatus({
         success: false,
@@ -358,1017 +437,662 @@ export function App() {
   const handleClearCache = async () => {
     await clearClassificationCache();
     await refreshCacheCount();
-    showToast('Classification cache cleared.');
+    showToast('AI cache cleared');
   };
 
-  const handleProfileSelect = (p: ProfileType) => {
-    setDefaultProfile(p);
-    setPreviewPerson(generateSyntheticPerson(p));
-  };
-
-  const handleDeleteRule = async (domain: string, selectorOrName: string) => {
-    await deleteDomainRule(domain, selectorOrName);
-    await loadDomainMappings();
-    showToast(`Removed rule from ${domain}`);
-  };
+  // ── Backup ────────────────────────────────────────────────
 
   const handleExportBackup = () => {
-    const backupData = {
-      version: '0.1.0',
+    const backup = {
+      app: 'nepal-test-filler',
+      version: extensionVersion(),
       exportedAt: new Date().toISOString(),
       theme: themePreference,
       defaultProfile,
+      selectedPresetId,
+      fillScript: defaultScript,
       fillCategories,
       enableFloatingBadge,
       enableSessionPersistence,
       aiEnabled,
+      geminiModel: selectedModel,
       domainMappings: allMappings,
-      personaPresets: presets,
-      selectedPresetId,
+      personaPresets: presets.filter((p) => !p.isBuiltin),
     };
-
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = `nepal-test-filler-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
-    URL.revokeObjectURL(url);
-    showToast('Settings exported to JSON.');
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Backup downloaded');
   };
 
   const handleImportBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = '';
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = async () => {
       try {
-        const text = e.target?.result as string;
-        const parsed = JSON.parse(text);
+        const parsed = JSON.parse(String(reader.result));
+        if (!isPlainObject(parsed)) throw new Error('not an object');
 
+        const values: Record<string, unknown> = {};
+        if (PROFILE_TYPES.includes(parsed.defaultProfile as ProfileType)) values.selectedProfile = parsed.defaultProfile;
+        if (parsed.fillScript === 'en' || parsed.fillScript === 'np') values.fillScript = parsed.fillScript;
+        if (isPlainObject(parsed.fillCategories)) {
+          values.fillCategories = { ...DEFAULT_FILL_CATEGORIES, ...(parsed.fillCategories as Partial<FillCategories>) };
+        }
+        if (typeof parsed.enableFloatingBadge === 'boolean') values.enableFloatingBadge = parsed.enableFloatingBadge;
+        if (typeof parsed.enableSessionPersistence === 'boolean') values.enableSessionPersistence = parsed.enableSessionPersistence;
+        if (typeof parsed.aiEnabled === 'boolean') values.geminiAiClassificationEnabled = parsed.aiEnabled;
+        if (typeof parsed.geminiModel === 'string') values.geminiModel = resolveGeminiModel(parsed.geminiModel);
         if (parsed.theme === 'dark' || parsed.theme === 'light' || parsed.theme === 'system') {
-          setThemePreference(parsed.theme);
-          applyThemeToDocument(parsed.theme);
+          await handleThemeChange(parsed.theme);
         }
 
-        if (parsed.defaultProfile) setDefaultProfile(parsed.defaultProfile);
-        if (parsed.fillCategories) setFillCategories(parsed.fillCategories);
-        if (parsed.enableFloatingBadge !== undefined) setEnableFloatingBadge(Boolean(parsed.enableFloatingBadge));
-        if (parsed.enableSessionPersistence !== undefined) setEnableSessionPersistence(Boolean(parsed.enableSessionPersistence));
-        if (parsed.aiEnabled !== undefined) setAiEnabled(parsed.aiEnabled);
-
-        if (parsed.personaPresets && Array.isArray(parsed.personaPresets)) {
-          setPresets(parsed.personaPresets);
-          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            await chrome.storage.local.set({ personaPresets: parsed.personaPresets });
-          }
+        const importedPresets = Array.isArray(parsed.personaPresets) ? parsed.personaPresets.filter(isValidPreset) : [];
+        for (const p of importedPresets) {
+          if (!p.isBuiltin) await savePersonaPreset(p);
+        }
+        const presetList = await getPersonaPresets();
+        if (typeof parsed.selectedPresetId === 'string' && presetList.some((p) => p.id === parsed.selectedPresetId)) {
+          values.selectedPresetId = parsed.selectedPresetId;
         }
 
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-          await chrome.storage.local.set({
-            selectedProfile: parsed.defaultProfile || defaultProfile,
-            fillCategories: parsed.fillCategories || fillCategories,
-            enableFloatingBadge: parsed.enableFloatingBadge !== undefined ? parsed.enableFloatingBadge : enableFloatingBadge,
-            enableSessionPersistence: parsed.enableSessionPersistence !== undefined ? parsed.enableSessionPersistence : enableSessionPersistence,
-            aiEnabled: parsed.aiEnabled !== undefined ? parsed.aiEnabled : aiEnabled,
-            selectedPresetId: parsed.selectedPresetId || selectedPresetId,
-            theme: (parsed.theme === 'dark' || parsed.theme === 'light' || parsed.theme === 'system') ? parsed.theme : themePreference,
-          });
-
-          // Import domain mappings
-          if (parsed.domainMappings && typeof parsed.domainMappings === 'object') {
-            for (const domain of Object.keys(parsed.domainMappings)) {
-              const config = parsed.domainMappings[domain];
-              const rules = config.rules || (Array.isArray(config) ? config : []);
-              for (const r of rules) {
-                await saveDomainRule(domain, r);
-              }
+        let ruleCount = 0;
+        if (isPlainObject(parsed.domainMappings)) {
+          for (const [domain, config] of Object.entries(parsed.domainMappings)) {
+            const rules = isPlainObject(config) && Array.isArray(config.rules) ? config.rules : Array.isArray(config) ? config : [];
+            for (const rule of rules.filter(isValidRule)) {
+              await saveDomainRule(domain, rule);
+              ruleCount++;
             }
           }
         }
 
-        await loadDomainMappings();
-        await loadPresets();
-        showToast('Settings successfully restored from backup!');
-      } catch (err) {
-        alert('Invalid backup JSON file.');
+        await saveSettings(values);
+        await Promise.all([loadSettings(), loadPresets(), loadDomainMappings()]);
+        showToast(`Restored settings, ${importedPresets.length} presets and ${ruleCount} site rules`);
+      } catch {
+        showToast('That file is not a valid Nepal Test Filler backup.', 'error');
       }
     };
     reader.readAsText(file);
   };
 
+  const openShortcutSettings = () => {
+    if (typeof chrome !== 'undefined' && chrome.tabs?.create) chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  };
+
+  const domainEntries = Object.entries(allMappings).filter(([, c]) => c.rules?.length);
+  const keyDirty = apiKey.trim() !== savedApiKey;
+  const version = extensionVersion();
+
   return (
-    <div className="options-container">
-      {/* Header */}
-      <header className="options-header">
-        <div className="options-brand">
-          <div className="options-logo">🇳🇵</div>
+    <div className="layout">
+      <header className="topbar">
+        <div className="brand">
+          <img src="/icons/icon-48.png" alt="" width={36} height={36} className="brand-logo" />
           <div>
             <h1>Nepal Test Filler</h1>
-            <p>Comprehensive Preferences, Archetype Profiles & Shortcuts</p>
+            <p>Settings{version ? ` · v${version}` : ''}</p>
           </div>
         </div>
-        <div className="options-header-actions">
-          <div className="theme-toggle-group">
-            <button
-              type="button"
-              className={`theme-toggle-btn ${themePreference === 'dark' ? 'active' : ''}`}
-              onClick={() => handleThemeChange('dark')}
-              title="Dark Theme"
-              aria-label="Dark Theme"
-            >
-              <Moon size={14} />
-              <span>Dark</span>
+        <div className="segmented" role="radiogroup" aria-label="Theme">
+          {([
+            ['light', <Sun size={14} key="i" />, 'Light'],
+            ['dark', <Moon size={14} key="i" />, 'Dark'],
+            ['system', <Laptop size={14} key="i" />, 'System'],
+          ] as const).map(([id, icon, label]) => (
+            <button key={id} type="button" role="radio" aria-checked={themePreference === id} className={themePreference === id ? 'on' : ''} onClick={() => handleThemeChange(id)}>
+              {icon}
+              <span>{label}</span>
             </button>
-            <button
-              type="button"
-              className={`theme-toggle-btn ${themePreference === 'light' ? 'active' : ''}`}
-              onClick={() => handleThemeChange('light')}
-              title="Light Theme"
-              aria-label="Light Theme"
-            >
-              <Sun size={14} />
-              <span>Light</span>
-            </button>
-            <button
-              type="button"
-              className={`theme-toggle-btn ${themePreference === 'system' ? 'active' : ''}`}
-              onClick={() => handleThemeChange('system')}
-              title="System Theme"
-              aria-label="System Theme"
-            >
-              <Laptop size={14} />
-              <span>Auto</span>
-            </button>
-          </div>
-          <div className="options-badge">v0.1.0 • Manifest V3</div>
+          ))}
         </div>
       </header>
 
-      {/* Main Layout */}
-      <div className="options-body">
-        {/* Navigation Sidebar */}
-        <aside className="options-sidebar">
-          <button
-            className={`nav-btn ${activeTab === 'profiles' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profiles')}
-          >
-            <User size={16} /> Specialized Profiles
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'mappings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('mappings')}
-          >
-            <Globe size={16} /> Domain Mappings
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'ai' ? 'active' : ''}`}
-            onClick={() => setActiveTab('ai')}
-          >
-            <Key size={16} /> Gemini AI & Cache
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'shortcuts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('shortcuts')}
-          >
-            <Keyboard size={16} /> Keyboard Shortcuts
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'backup' ? 'active' : ''}`}
-            onClick={() => setActiveTab('backup')}
-          >
-            <Database size={16} /> Backup & Restore
-          </button>
-        </aside>
+      <div className="body">
+        <nav className="sidebar" aria-label="Settings sections">
+          {NAV.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+              aria-current={activeTab === item.id ? 'page' : undefined}
+              onClick={() => setActiveTab(item.id)}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
-        {/* Tab Content */}
-        <main className="options-content">
-          {notification && (
-            <div className="options-toast">
-              <CheckCircle2 size={16} /> {notification}
-            </div>
-          )}
+        <main className="content">
+          {activeTab === 'general' && (
+            <section>
+              <h2>General</h2>
+              <p className="lead">These settings apply to the popup, keyboard shortcuts and the in-page button. Changes save automatically.</p>
 
-          {/* TAB 1: Specialized Profiles */}
-          {activeTab === 'profiles' && (
-            <div className="tab-pane">
-              <h2>Default Test Profile & Generation</h2>
-              <p className="tab-subtitle">
-                Select your default persona archetype for 1-click filling and view synthetic attributes.
-              </p>
+              <div className="card list">
+                <div className="setting">
+                  <div>
+                    <div className="setting-title">Fill script</div>
+                    <div className="setting-desc">Language used for names and addresses. Fields labelled in Devanagari always get Nepali text.</div>
+                  </div>
+                  <div className="segmented">
+                    <button type="button" className={defaultScript === 'en' ? 'on' : ''} aria-pressed={defaultScript === 'en'} onClick={() => { setDefaultScript('en'); persist({ fillScript: 'en' }); }}>
+                      English
+                    </button>
+                    <button type="button" lang="ne" className={defaultScript === 'np' ? 'on' : ''} aria-pressed={defaultScript === 'np'} onClick={() => { setDefaultScript('np'); persist({ fillScript: 'np' }); }}>
+                      नेपाली
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-              <div className="profile-grid">
-                {PROFILES.map((p) => (
-                  <div
-                    key={p.id}
-                    className={`profile-card ${defaultProfile === p.id ? 'selected' : ''}`}
-                    onClick={() => handleProfileSelect(p.id)}
-                  >
-                    <div className="profile-card-header">
-                      <div className="profile-card-icon">{p.icon}</div>
-                      <h3>{p.label}</h3>
-                    </div>
-                    <p>{p.desc}</p>
+              <h3>Fields to fill</h3>
+              <div className="card list">
+                {CATEGORY_INFO.map((cat) => (
+                  <div className="setting" key={cat.id}>
+                    <label htmlFor={`cat-${cat.id}`}>
+                      <div className="setting-title">{cat.label}</div>
+                      <div className="setting-desc">{cat.desc}</div>
+                    </label>
+                    <Switch
+                      id={`cat-${cat.id}`}
+                      label={cat.label}
+                      checked={fillCategories[cat.id]}
+                      onChange={(v) => {
+                        const updated = { ...fillCategories, [cat.id]: v };
+                        setFillCategories(updated);
+                        persist({ fillCategories: updated });
+                      }}
+                    />
                   </div>
                 ))}
               </div>
 
-              <div className="section-divider" />
-
-              {/* Custom Persona Presets Section */}
-              <div className="preset-section-header">
-                <div>
-                  <h3>Custom QA Persona Presets</h3>
-                  <p className="tab-subtitle" style={{ marginBottom: 0 }}>
-                    Configure and save customized test personas (e.g. QA SuperAdmin, Biratnagar Retailer, Pokhara Foreign Student) with geographic or professional constraints.
-                  </p>
+              <h3>Behaviour</h3>
+              <div className="card list">
+                <div className="setting">
+                  <label htmlFor="badge-toggle">
+                    <div className="setting-title">In-page quick-fill button</div>
+                    <div className="setting-desc">Show a small button next to the focused field to fill the form, fill one field, or undo.</div>
+                  </label>
+                  <Switch
+                    id="badge-toggle"
+                    label="In-page quick-fill button"
+                    checked={enableFloatingBadge}
+                    onChange={(v) => { setEnableFloatingBadge(v); persist({ enableFloatingBadge: v }); }}
+                  />
                 </div>
-                <div className="preset-header-actions">
-                  <button className="primary-btn" onClick={handleStartCreatePreset}>
-                    <Plus size={16} /> New Persona Preset
+                <div className="setting">
+                  <label htmlFor="session-toggle">
+                    <div className="setting-title">Keep the same person per tab</div>
+                    <div className="setting-desc">Multi-step forms get the same person on every step instead of a new one each page.</div>
+                  </label>
+                  <Switch
+                    id="session-toggle"
+                    label="Keep the same person per tab"
+                    checked={enableSessionPersistence}
+                    onChange={(v) => { setEnableSessionPersistence(v); persist({ enableSessionPersistence: v }); }}
+                  />
+                </div>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'personas' && (
+            <section>
+              <h2>Personas</h2>
+              <p className="lead">Pick who the extension fills forms as. Use a preset to lock details like location, employer or bank.</p>
+
+              <h3>Archetypes</h3>
+              <div className="profile-grid">
+                {PROFILES.map((p) => {
+                  const active = !selectedPresetId && defaultProfile === p.id;
+                  return (
+                    <button key={p.id} type="button" className={`profile-card ${active ? 'selected' : ''}`} aria-pressed={active} onClick={() => handleProfileSelect(p.id)}>
+                      <span className="profile-icon">{p.icon}</span>
+                      <span className="profile-text">
+                        <span className="profile-name">{p.label}</span>
+                        <span className="profile-desc">{p.desc}</span>
+                      </span>
+                      {active && <Check size={16} className="profile-check" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="section-head">
+                <h3>Presets</h3>
+                <div className="row">
+                  <button type="button" className="btn ghost" onClick={handleRestoreBuiltins}>
+                    <RotateCcw size={14} /> Restore built-ins
                   </button>
-                  <button className="secondary-btn" onClick={handleResetPresets} title="Reset all presets back to defaults">
-                    <RotateCcw size={14} /> Reset Built-ins
+                  <button type="button" className="btn primary" onClick={() => setEditingPreset({ ...EMPTY_PRESET })}>
+                    <Plus size={15} /> New preset
                   </button>
                 </div>
               </div>
 
-              {isEditingPreset && (
-                <div className="preset-editor-card">
-                  <h3>{editingPreset.id ? 'Edit Persona Preset' : 'Create New Persona Preset'}</h3>
-                  <div className="preset-form-grid">
-                    <div className="form-field-group">
-                      <label>Preset Name *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., QA SuperAdmin, Biratnagar Retailer"
-                        value={editingPreset.name || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Base Archetype *</label>
-                      <select
-                        value={editingPreset.baseProfile || 'general'}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, baseProfile: e.target.value as ProfileType })}
-                      >
-                        <option value="general">General Citizen</option>
-                        <option value="student">Student</option>
-                        <option value="employee">Employee</option>
-                        <option value="business">Business Owner</option>
-                        <option value="teacher">Teacher / Faculty</option>
-                        <option value="farmer">Farmer / Agriculture</option>
-                      </select>
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Description / QA Notes</label>
-                      <input
-                        type="text"
-                        placeholder="Purpose of this persona preset"
-                        value={editingPreset.description || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, description: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Preferred Gender</label>
-                      <select
-                        value={editingPreset.gender || 'Random'}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, gender: e.target.value as any })}
-                      >
-                        <option value="Random">Random</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Preferred Script</label>
-                      <select
-                        value={editingPreset.preferredScript || 'en'}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, preferredScript: e.target.value as FillScript })}
-                      >
-                        <option value="en">English (Romanized)</option>
-                        <option value="np">नेपाली (Devanagari Unicode)</option>
-                      </select>
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Target Province</label>
-                      <select
-                        value={editingPreset.province || ''}
-                        onChange={(e) => {
-                          const prov = e.target.value;
-                          setEditingPreset({ ...editingPreset, province: prov, district: '' });
-                        }}
-                      >
-                        <option value="">Any / Random Province</option>
-                        {NepalDataEngine.provinces.map((pr) => (
-                          <option key={pr.name} value={pr.name}>
-                            {pr.name} ({pr.nepaliName})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Target District</label>
-                      <select
-                        value={editingPreset.district || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, district: e.target.value })}
-                      >
-                        <option value="">Any / Random District</option>
-                        {(editingPreset.province
-                          ? NepalDataEngine.getDistrictsByProvince(editingPreset.province)
-                          : NepalDataEngine.districts
-                        ).map((d) => (
-                          <option key={d.name} value={d.name}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Target Municipality (Optional)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Biratnagar Metropolitan City"
-                        value={editingPreset.municipality || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, municipality: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Designation / Job Title</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. QA Super Administrator, Merchant"
-                        value={editingPreset.designation || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, designation: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Company / Organization Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Nepal Enterprise QA Cloud"
-                        value={editingPreset.companyName || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, companyName: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>School / College (Student)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Prithvi Narayan Campus"
-                        value={editingPreset.school || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, school: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Faculty / Grade (Student)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Science & Technology / Bachelor 3rd Year"
-                        value={editingPreset.faculty || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, faculty: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Business Name (Business Owner)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Birat Trade Syndicate"
-                        value={editingPreset.businessName || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, businessName: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Custom Email Domain</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. superadmin.qa or testcompany.np"
-                        value={editingPreset.emailDomain || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, emailDomain: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Blood Group</label>
-                      <select
-                        value={editingPreset.bloodGroup || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, bloodGroup: (e.target.value as any) || undefined })}
-                      >
-                        <option value="">Any / Random</option>
-                        {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((bg) => (
-                          <option key={bg} value={bg}>{bg}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="form-field-group">
-                      <label>Bank Name</label>
-                      <select
-                        value={editingPreset.bankName || ''}
-                        onChange={(e) => setEditingPreset({ ...editingPreset, bankName: e.target.value })}
-                      >
-                        <option value="">Any / Random Bank</option>
-                        {COMMERCIAL_BANKS.map((b) => (
-                          <option key={b.shortName} value={b.shortName}>
-                            {b.shortName} ({b.nameNp})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="preset-form-actions">
-                    <button className="primary-btn" onClick={handleSavePreset}>
-                      <Save size={16} /> Save Preset
-                    </button>
-                    <button className="secondary-btn" onClick={() => setIsEditingPreset(false)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
+              {editingPreset && (
+                <PresetEditor
+                  preset={editingPreset}
+                  onChange={setEditingPreset}
+                  onSave={handleSavePreset}
+                  onCancel={() => setEditingPreset(null)}
+                />
               )}
 
               <div className="preset-grid">
-                {presets.map((preset) => (
-                  <div key={preset.id} className="preset-card">
-                    <div className="preset-card-top">
-                      <div className="preset-card-title-row">
-                        <h4 className="preset-card-title">{preset.name}</h4>
-                        <div className="preset-badges">
-                          <span className="badge-profile">{preset.baseProfile}</span>
-                          <span className={preset.isBuiltin ? 'badge-builtin' : 'badge-custom'}>
-                            {preset.isBuiltin ? 'Built-in' : 'Custom'}
-                          </span>
-                        </div>
+                {presets.map((preset) => {
+                  const active = selectedPresetId === preset.id;
+                  const details = [
+                    ['Location', [preset.municipality, preset.district, preset.province].filter(Boolean).join(', ')],
+                    ['Role', preset.designation || preset.jobTitle],
+                    ['Company', preset.companyName],
+                    ['School', preset.school],
+                    ['Business', preset.businessName],
+                    ['Bank', preset.bankName],
+                    ['Email', preset.emailDomain ? `@${preset.emailDomain}` : ''],
+                  ].filter(([, v]) => v);
+                  return (
+                    <article key={preset.id} className={`preset-card ${active ? 'selected' : ''}`}>
+                      <div className="preset-top">
+                        <h4>{preset.name}</h4>
+                        <span className="tag">{PROFILES.find((p) => p.id === preset.baseProfile)?.label || preset.baseProfile}</span>
                       </div>
                       {preset.description && <p className="preset-desc">{preset.description}</p>}
-
-                      <div className="preset-details-list">
-                        {(preset.province || preset.district) && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">Location:</span>
-                            <span className="val">
-                              {[preset.district, preset.province].filter(Boolean).join(', ')}
-                            </span>
-                          </div>
-                        )}
-                        {preset.designation && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">Designation:</span>
-                            <span className="val">{preset.designation}</span>
-                          </div>
-                        )}
-                        {preset.companyName && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">Company:</span>
-                            <span className="val">{preset.companyName}</span>
-                          </div>
-                        )}
-                        {preset.school && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">School:</span>
-                            <span className="val">{preset.school}</span>
-                          </div>
-                        )}
-                        {preset.businessName && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">Business:</span>
-                            <span className="val">{preset.businessName}</span>
-                          </div>
-                        )}
-                        {preset.emailDomain && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">Email Domain:</span>
-                            <span className="val">@{preset.emailDomain}</span>
-                          </div>
-                        )}
-                        {preset.bankName && (
-                          <div className="preset-detail-item">
-                            <span className="lbl">Bank:</span>
-                            <span className="val">{preset.bankName}</span>
-                          </div>
+                      {details.length > 0 && (
+                        <dl className="preset-details">
+                          {details.map(([k, v]) => (
+                            <React.Fragment key={k}>
+                              <dt>{k}</dt>
+                              <dd>{v}</dd>
+                            </React.Fragment>
+                          ))}
+                        </dl>
+                      )}
+                      <div className="preset-actions">
+                        <button type="button" className={`btn ${active ? 'success' : 'secondary'} grow`} onClick={() => handleUsePreset(preset)} disabled={active}>
+                          {active ? <><Check size={14} /> In use</> : 'Use this preset'}
+                        </button>
+                        <button type="button" className="icon-btn" title="Edit" aria-label={`Edit ${preset.name}`} onClick={() => setEditingPreset({ ...preset })}>
+                          <Pencil size={14} />
+                        </button>
+                        {!preset.isBuiltin && (
+                          <button type="button" className="icon-btn danger" title="Delete" aria-label={`Delete ${preset.name}`} onClick={() => handleDeletePreset(preset)}>
+                            <Trash2 size={14} />
+                          </button>
                         )}
                       </div>
-                    </div>
-
-                    <div className="preset-card-actions">
-                      <button
-                        className="preset-btn-test"
-                        onClick={() => handleTestPreset(preset)}
-                        title="Generate and view live persona in preview"
-                      >
-                        <Sparkles size={13} /> Test Generate
-                      </button>
-                      <button
-                        className="preset-btn-action"
-                        onClick={() => handleStartEditPreset(preset)}
-                        title="Edit preset settings"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-                      {!preset.isBuiltin && (
-                        <button
-                          className="preset-btn-action danger"
-                          onClick={() => handleDeletePreset(preset.id, preset.name)}
-                          title="Delete custom preset"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
 
-              <div className="section-divider" />
-
-              <h3>Default Field Categories to Fill</h3>
-              <div className="categories-grid">
-                {(['personal', 'contact', 'address', 'professional'] as const).map((cat) => (
-                  <label key={cat} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={fillCategories[cat]}
-                      onChange={(e) =>
-                        setFillCategories({ ...fillCategories, [cat]: e.target.checked })
-                      }
-                    />
-                    <span>{cat.charAt(0).toUpperCase() + cat.slice(1)} Information</span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="section-divider" />
-
-              <h3>Inline Quick Fill Trigger</h3>
-              <div className="setting-card">
-                <label className="switch-label">
-                  <input
-                    type="checkbox"
-                    checked={enableFloatingBadge}
-                    onChange={(e) => setEnableFloatingBadge(e.target.checked)}
-                  />
-                  <span><strong>Enable Inline Floating Badge (🇳🇵) on Form Fields</strong></span>
-                </label>
-                <p className="help-text">
-                  Displays a discreet 1-click floating icon beside focused or hovered form inputs to quickly fill the form, fill a single field, or undo without opening the popup.
-                </p>
-              </div>
-
-              <div className="section-divider" />
-
-              <h3>Multi-Step Wizard & SPA Persistence</h3>
-              <div className="setting-card">
-                <label className="switch-label">
-                  <input
-                    type="checkbox"
-                    checked={enableSessionPersistence}
-                    onChange={(e) => setEnableSessionPersistence(e.target.checked)}
-                  />
-                  <span><strong>Retain Persona Across Multi-Step Forms & SPA (Session Storage)</strong></span>
-                </label>
-                <p className="help-text">
-                  Keeps the same synthetic citizen in tab memory across multi-step forms (Step 1: Personal → Step 2: Address → Step 3: Education) instead of generating new random individuals on each page.
-                </p>
-              </div>
-
-              <div className="section-divider" />
-
-              <h3>Theme & Appearance</h3>
-              <div className="setting-card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px' }}>
-                      Color Theme
-                    </div>
-                    <p className="help-text" style={{ margin: 0 }}>
-                      Choose between Dark Crimson/Slate, Clean Light Mode, or automatic System OS detection.
-                    </p>
-                  </div>
-                  <div className="theme-toggle-group">
-                    <button
-                      type="button"
-                      className={`theme-toggle-btn ${themePreference === 'dark' ? 'active' : ''}`}
-                      onClick={() => handleThemeChange('dark')}
-                    >
-                      <Moon size={14} />
-                      <span>Dark</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`theme-toggle-btn ${themePreference === 'light' ? 'active' : ''}`}
-                      onClick={() => handleThemeChange('light')}
-                    >
-                      <Sun size={14} />
-                      <span>Light</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`theme-toggle-btn ${themePreference === 'system' ? 'active' : ''}`}
-                      onClick={() => handleThemeChange('system')}
-                    >
-                      <Laptop size={14} />
-                      <span>Auto</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="section-divider" />
-
-              <div className="preview-header">
-                <h3>Live Persona Preview ({defaultProfile.toUpperCase()})</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="secondary-btn"
-                    onClick={handleCopyPreviewJson}
-                    title="Copy Persona JSON for Postman / Swagger / API testing"
-                  >
+              <div className="section-head">
+                <h3>Preview · {previewSource}</h3>
+                <div className="row">
+                  <button type="button" className="btn ghost" onClick={handleCopyPreviewJson}>
                     <Copy size={14} /> Copy JSON
                   </button>
-                  <button
-                    className="secondary-btn"
-                    onClick={() => setPreviewPerson(generateSyntheticPerson(defaultProfile))}
-                  >
-                    <RefreshCw size={14} /> Re-generate
+                  <button type="button" className="btn ghost" onClick={regeneratePreview}>
+                    <RefreshCw size={14} /> New person
                   </button>
                 </div>
               </div>
-
-              <div className="preview-panel">
-                <div className="preview-row">
-                  <span className="lbl">Full Name:</span>
-                  <span className="val">{previewPerson.fullName} ({previewPerson.gender})</span>
-                </div>
-                <div className="preview-row">
-                  <span className="lbl">Date of Birth:</span>
-                  <span className="val">{previewPerson.dateOfBirth} (AD) • {previewPerson.dateOfBirthBS} (BS)</span>
-                </div>
-                <div className="preview-row">
-                  <span className="lbl">Citizenship / NID:</span>
-                  <span className="val">{previewPerson.citizenshipNumber} • NID: {previewPerson.nationalId}</span>
-                </div>
-                <div className="preview-row">
-                  <span className="lbl">Phone / Mobile:</span>
-                  <span className="val">{previewPerson.phone} • Landline: {previewPerson.telephone}</span>
-                </div>
-                <div className="preview-row">
-                  <span className="lbl">Full Address:</span>
-                  <span className="val">{previewPerson.address.fullAddress}</span>
-                </div>
-
-                {defaultProfile === 'student' && (
-                  <>
-                    <div className="preview-row">
-                      <span className="lbl">Student ID / Roll:</span>
-                      <span className="val">{previewPerson.studentId} • {previewPerson.grade}</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">School & Faculty:</span>
-                      <span className="val">{previewPerson.school} ({previewPerson.faculty})</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">Guardian:</span>
-                      <span className="val">{previewPerson.guardianName} ({previewPerson.guardianPhone})</span>
-                    </div>
-                  </>
-                )}
-
-                {defaultProfile === 'employee' && (
-                  <>
-                    <div className="preview-row">
-                      <span className="lbl">Employee ID:</span>
-                      <span className="val">{previewPerson.employeeId} • Salary: {previewPerson.salary}</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">Designation & Org:</span>
-                      <span className="val">{previewPerson.designation} at {previewPerson.companyName}</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">Work Email & PAN:</span>
-                      <span className="val">{previewPerson.workEmail} • PAN: {previewPerson.panNumber}</span>
-                    </div>
-                  </>
-                )}
-
-                {defaultProfile === 'business' && (
-                  <>
-                    <div className="preview-row">
-                      <span className="lbl">Business Name:</span>
-                      <span className="val">{previewPerson.businessName} ({previewPerson.businessType})</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">VAT & PAN:</span>
-                      <span className="val">{previewPerson.vatNumber} • PAN: {previewPerson.panNumber}</span>
-                    </div>
-                  </>
-                )}
-
-                {defaultProfile === 'farmer' && (
-                  <>
-                    <div className="preview-row">
-                      <span className="lbl">Agriculture Produce:</span>
-                      <span className="val">{previewPerson.cropType}</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">Local Cooperative:</span>
-                      <span className="val">{previewPerson.cooperative}</span>
-                    </div>
-                  </>
-                )}
-
-                {defaultProfile === 'teacher' && (
-                  <>
-                    <div className="preview-row">
-                      <span className="lbl">Subject & Faculty:</span>
-                      <span className="val">{previewPerson.subject} ({previewPerson.faculty})</span>
-                    </div>
-                    <div className="preview-row">
-                      <span className="lbl">Institution:</span>
-                      <span className="val">{previewPerson.school}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="btn-group">
-                <button className="primary-btn" onClick={saveGeneralSettings}>
-                  <Save size={16} /> Save Preferences
-                </button>
-              </div>
-            </div>
+              <PersonPreview person={previewPerson} />
+            </section>
           )}
 
-          {/* TAB 2: Domain Mappings */}
           {activeTab === 'mappings' && (
-            <div className="tab-pane">
-              <h2>Saved Website-Specific Field Mappings</h2>
-              <p className="tab-subtitle">
-                Rules configured to map custom form selectors on specific domains to synthetic data fields.
-              </p>
+            <section>
+              <h2>Site rules</h2>
+              <p className="lead">Rules tell the extension exactly what to put in a field on a specific site. Create them from the popup's “Site rules” tab while on that site.</p>
 
-              {Object.keys(allMappings).length === 0 ? (
-                <div className="empty-state">
-                  <Globe size={40} />
-                  <p>No domain mappings configured yet.</p>
-                  <span className="help-text">
-                    Open the extension popup on any webpage and navigate to "Site Mappings" to create your first rule!
-                  </span>
+              {domainEntries.length === 0 ? (
+                <div className="empty">
+                  <Globe size={28} />
+                  <p>No site rules yet.</p>
                 </div>
               ) : (
-                <div className="mappings-list">
-                  {Object.entries(allMappings).map(([domain, config]) => (
-                    <div key={domain} className="domain-group">
-                      <div className="domain-header">
-                        <Globe size={16} />
+                <div className="stack">
+                  {domainEntries.map(([domain, config]) => (
+                    <div key={domain} className="card">
+                      <div className="domain-head">
+                        <Globe size={15} />
                         <h4>{domain}</h4>
-                        <span className="rule-badge">{config.rules.length} rule{config.rules.length > 1 ? 's' : ''}</span>
+                        <span className="tag">{config.rules.length} rule{config.rules.length === 1 ? '' : 's'}</span>
+                        <button type="button" className="btn ghost small danger-text" onClick={() => handleDeleteDomain(domain)}>
+                          Remove all
+                        </button>
                       </div>
-                      <div className="rules-table">
+                      <ul className="rule-list">
                         {config.rules.map((rule) => (
-                          <div key={rule.selectorOrName} className="rule-row">
-                            <span className="rule-target">🎯 {rule.targetType}</span>
-                            <span className="rule-matcher">
-                              <span className="rule-type-badge">{rule.matchType || 'name_or_id'}</span> {rule.selectorOrName}
-                            </span>
-                            <button
-                              className="icon-btn delete-btn"
-                              title="Delete Rule"
-                              onClick={() => handleDeleteRule(domain, rule.selectorOrName)}
-                            >
+                          <li key={rule.selectorOrName}>
+                            <code>{rule.selectorOrName}</code>
+                            <span className="muted" aria-hidden="true">→</span>
+                            <span className="rule-target">{fieldTypeLabel(rule.targetType)}</span>
+                            <button type="button" className="icon-btn danger" title="Delete rule" aria-label={`Delete rule ${rule.selectorOrName}`} onClick={() => handleDeleteRule(domain, rule.selectorOrName)}>
                               <Trash2 size={14} />
                             </button>
-                          </div>
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </section>
           )}
 
-          {/* TAB 3: Gemini AI & Cache */}
           {activeTab === 'ai' && (
-            <div className="tab-pane">
-              <h2>Gemini AI & Unknown Field Cache</h2>
-              <p className="tab-subtitle">
-                Local-first privacy architecture: Gemini is only invoked for unknown fields when enabled.
+            <section>
+              <h2>AI assist</h2>
+              <p className="lead">
+                Optional. When the built-in rules can't recognise a field, Google Gemini can classify it. Everything else stays on your device.
               </p>
 
-              <div className="setting-card">
-                <label className="switch-label">
-                  <input
-                    type="checkbox"
+              <div className="card list">
+                <div className="setting">
+                  <label htmlFor="ai-toggle">
+                    <div className="setting-title">Classify unknown fields with Gemini</div>
+                    <div className="setting-desc">{savedApiKey ? 'Uses your API key below.' : 'Add an API key below to turn this on.'}</div>
+                  </label>
+                  <Switch
+                    id="ai-toggle"
+                    label="Classify unknown fields with Gemini"
                     checked={aiEnabled}
-                    onChange={(e) => setAiEnabled(e.target.checked)}
+                    onChange={handleAiToggle}
+                    disabled={!aiEnabled && !savedApiKey}
                   />
-                  <span><strong>Enable AI Classifier for Unrecognized Form Fields</strong></span>
-                </label>
-                <p className="help-text">
-                  When enabled, unclassified fields send an anonymized fingerprint (field name, id, label)
-                  to Gemini Flash to predict the appropriate Nepal test data category.
-                </p>
-              </div>
+                </div>
 
-              <div className="setting-card">
-                <label><strong>Google Gemini API Key:</strong></label>
-                <div className="api-key-input-row">
-                  <input
-                    type="password"
-                    className="input-text"
-                    placeholder="AIzaSy..."
-                    value={apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value);
-                      if (testStatus) setTestStatus(null);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="secondary-btn test-conn-btn"
-                    onClick={handleTestConnection}
-                    disabled={isTesting}
-                    title="Validate API key format and quota balance with Gemini API"
-                  >
-                    <Activity size={14} className={isTesting ? 'animate-spin' : ''} />
-                    {isTesting ? 'Testing...' : 'Test Connection'}
+                <div className="setting column">
+                  <label htmlFor="api-key" className="setting-title">Gemini API key</label>
+                  <div className="row">
+                    <div className="input-wrap grow">
+                      <input
+                        id="api-key"
+                        type={showKey ? 'text' : 'password'}
+                        className="input"
+                        placeholder="Paste your key from Google AI Studio"
+                        value={apiKey}
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(e) => { setApiKey(e.target.value); setTestStatus(null); }}
+                      />
+                      <button type="button" className="input-icon" onClick={() => setShowKey(!showKey)} aria-label={showKey ? 'Hide key' : 'Show key'}>
+                        {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    <button type="button" className="btn primary" onClick={handleSaveKey} disabled={!keyDirty}>
+                      Save
+                    </button>
+                    <button type="button" className="btn secondary" onClick={handleTestConnection} disabled={isTesting || !apiKey.trim()}>
+                      {isTesting ? <Loader2 size={14} className="spin" /> : null}
+                      {isTesting ? 'Testing…' : 'Test'}
+                    </button>
+                  </div>
+                  <div className="setting-desc">
+                    Stored only in this browser. Get a key at{' '}
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com <ExternalLink size={11} /></a>
+                  </div>
+                  {testStatus && (
+                    <div className={`notice ${testStatus.success ? 'success' : 'error'}`} role="status">
+                      {testStatus.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                      <span>{testStatus.message}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="setting">
+                  <label htmlFor="model">
+                    <div className="setting-title">Model</div>
+                    <div className="setting-desc">Flash-Lite is fast and cheap, which suits field classification well.</div>
+                  </label>
+                  <select id="model" className="select" value={selectedModel} onChange={(e) => handleModelChange(e.target.value)}>
+                    {SUPPORTED_GEMINI_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.description})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="setting">
+                  <div>
+                    <div className="setting-title">Cached answers</div>
+                    <div className="setting-desc">{cacheCount} field{cacheCount === 1 ? '' : 's'} remembered so the same field is never sent twice.</div>
+                  </div>
+                  <button type="button" className="btn secondary" onClick={handleClearCache} disabled={cacheCount === 0}>
+                    <Trash2 size={14} /> Clear
                   </button>
                 </div>
-                <p className="help-text">
-                  Your key is saved exclusively in your browser’s local storage (`chrome.storage.local`).
-                </p>
+              </div>
 
-                {testStatus && (
-                  <div className={`connection-feedback-card ${testStatus.success ? 'success' : 'error'}`}>
-                    {testStatus.success ? (
-                      <CheckCircle2 size={16} className="status-icon" />
-                    ) : (
-                      <AlertCircle size={16} className="status-icon" />
-                    )}
-                    <div className="feedback-content">
-                      <strong>{testStatus.success ? 'Connection Verified' : 'Validation Error'}</strong>
-                      <p>{testStatus.message}</p>
+              <div className="notice info">
+                <AlertCircle size={16} />
+                <span>
+                  What is sent: the site's hostname and the unknown field's name, id, placeholder, label and input type. Never what you or the page typed, and
+                  never the generated test data.
+                </span>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'shortcuts' && (
+            <section>
+              <h2>Shortcuts</h2>
+              <p className="lead">Fill forms without opening the popup.</p>
+
+              <div className="card list">
+                {commands.length > 0 ? (
+                  commands.map((cmd) => (
+                    <div className="setting" key={cmd.name}>
+                      <div className="setting-title">{cmd.description}</div>
+                      {cmd.shortcut ? <kbd>{cmd.shortcut}</kbd> : <span className="muted">Not set</span>}
                     </div>
+                  ))
+                ) : (
+                  <div className="setting">
+                    <div className="setting-title">Fill the current page</div>
+                    <kbd>Alt+Shift+F</kbd>
                   </div>
                 )}
-              </div>
-
-              <div className="setting-card">
-                <label><strong>Gemini Model:</strong></label>
-                <select
-                  className="input-select"
-                  value={selectedModel}
-                  onChange={(e) => {
-                    setSelectedModel(e.target.value);
-                    if (testStatus) setTestStatus(null);
-                  }}
-                >
-                  {SUPPORTED_GEMINI_MODELS.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.id} — {model.description}
-                    </option>
-                  ))}
-                </select>
-                <p className="help-text">
-                  Select model for unknown field classification. Automatically falls back to {FALLBACK_GEMINI_MODEL} if the selected model is unavailable.
-                </p>
-              </div>
-
-              <div className="setting-card">
-                <div className="cache-header">
-                  <div>
-                    <strong>Local Hash-Based Classification Cache</strong>
-                    <p className="help-text">
-                      Stores previously classified field fingerprints so duplicate fields never make repeated API calls.
-                    </p>
-                  </div>
-                  <span className="cache-pill">{cacheCount} Cached Pattern{cacheCount !== 1 ? 's' : ''}</span>
+                <div className="setting">
+                  <div className="setting-title">Right-click menu</div>
+                  <span className="muted">Right-click a page → Fill form with Nepali test data</span>
                 </div>
-                <button className="secondary-btn danger-btn" onClick={handleClearCache}>
-                  <Trash2 size={14} /> Clear Cache
-                </button>
               </div>
 
-              <div className="btn-group">
-                <button className="primary-btn" onClick={saveAiSettings}>
-                  <Save size={16} /> Save AI Configuration
-                </button>
-              </div>
-            </div>
+              <button type="button" className="btn secondary" onClick={openShortcutSettings}>
+                <Keyboard size={14} /> Change shortcuts
+              </button>
+            </section>
           )}
 
-          {/* TAB 4: Keyboard Shortcuts */}
-          {activeTab === 'shortcuts' && (
-            <div className="tab-pane">
-              <h2>Keyboard Productivity Shortcuts</h2>
-              <p className="tab-subtitle">
-                Supercharge QA workflows with instant 1-click filling without opening the extension popup.
-              </p>
-
-              <div className="shortcut-card">
-                <div className="shortcut-keys">
-                  <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
-                </div>
-                <div className="shortcut-info">
-                  <h4>Quick Fill Active Tab</h4>
-                  <p>Instantly identifies all fields on the current webpage and fills them using your default test persona.</p>
-                </div>
-              </div>
-
-              <div className="shortcut-card">
-                <div className="shortcut-keys">
-                  <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>
-                </div>
-                <div className="shortcut-info">
-                  <h4>Regenerate & Refill Active Tab</h4>
-                  <p>Generates a brand-new synthetic Nepali citizen profile and re-fills the active form immediately.</p>
-                </div>
-              </div>
-
-              <div className="shortcut-card">
-                <div className="shortcut-keys">
-                  <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>U</kbd>
-                </div>
-                <div className="shortcut-info">
-                  <h4>Undo / Revert Form Fields</h4>
-                  <p>Restores previously filled inputs back to their initial original values or clears them.</p>
-                </div>
-              </div>
-
-              <div className="shortcut-card">
-                <div className="shortcut-keys">
-                  <span style={{ fontSize: '18px' }}>🇳🇵</span>
-                </div>
-                <div className="shortcut-info">
-                  <h4>In-Field Floating Badge</h4>
-                  <p>Click the discreet floating flag icon inside any focused or hovered form field to fill the whole form, populate that field only, or undo.</p>
-                </div>
-              </div>
-
-              <div className="shortcut-card">
-                <div className="shortcut-keys">
-                  <kbd>Right Click</kbd>
-                </div>
-                <div className="shortcut-info">
-                  <h4>Context Menu Action</h4>
-                  <p>Right-click on any input or form area and choose <em>"Fill with Nepali Test Data"</em>.</p>
-                </div>
-              </div>
-
-              <div className="tip-box">
-                💡 <strong>Custom Keybindings:</strong> You can customize these shortcuts anytime at <code>chrome://extensions/shortcuts</code>.
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: Backup & Restore */}
           {activeTab === 'backup' && (
-            <div className="tab-pane">
-              <h2>Backup & Data Management</h2>
-              <p className="tab-subtitle">
-                Export all your domain rules, preferences, and custom mappings or import them across workstations.
-              </p>
+            <section>
+              <h2>Backup</h2>
+              <p className="lead">Move your presets, site rules and preferences to another browser. Your API key is never included.</p>
 
-              <div className="backup-actions">
-                <div className="backup-box">
-                  <Download size={28} />
-                  <h3>Export Configuration</h3>
-                  <p>Download a JSON backup of your default profile, categories, and all custom domain mapping rules.</p>
-                  <button className="primary-btn" onClick={handleExportBackup}>
-                    <Download size={16} /> Export JSON Backup
+              <div className="backup-grid">
+                <div className="card backup">
+                  <Download size={22} />
+                  <h4>Export</h4>
+                  <p>Download a JSON file with your settings, presets and site rules.</p>
+                  <button type="button" className="btn primary" onClick={handleExportBackup}>
+                    Download backup
                   </button>
                 </div>
-
-                <div className="backup-box">
-                  <Upload size={28} />
-                  <h3>Restore from Backup</h3>
-                  <p>Select a previously exported JSON backup file to restore all settings and rules.</p>
-                  <label className="upload-btn">
-                    <Upload size={16} /> Select Backup File
-                    <input type="file" accept=".json" onChange={handleImportBackup} />
+                <div className="card backup">
+                  <Upload size={22} />
+                  <h4>Import</h4>
+                  <p>Restore from a backup file. Existing presets and rules are kept; matching ones are updated.</p>
+                  <label className="btn secondary file-btn">
+                    Choose file…
+                    <input type="file" accept="application/json,.json" onChange={handleImportBackup} />
                   </label>
                 </div>
               </div>
-            </div>
+            </section>
           )}
         </main>
       </div>
+
+      {toast && (
+        <div className={`toast ${toast.kind}`} role="status" aria-live="polite">
+          {toast.kind === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+          {toast.text}
+        </div>
+      )}
     </div>
+  );
+}
+
+function PresetEditor({
+  preset,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  preset: Partial<PersonaPreset>;
+  onChange: (p: Partial<PersonaPreset>) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const set = (patch: Partial<PersonaPreset>) => onChange({ ...preset, ...patch });
+  const districts = preset.province ? NepalDataEngine.getDistrictsByProvince(preset.province) : NepalDataEngine.districts;
+  const text = (key: keyof PersonaPreset, label: string, placeholder: string) => (
+    <label className="form-field">
+      <span>{label}</span>
+      <input className="input" type="text" placeholder={placeholder} value={(preset[key] as string) || ''} onChange={(e) => set({ [key]: e.target.value } as Partial<PersonaPreset>)} />
+    </label>
+  );
+
+  return (
+    <div className="card editor">
+      <h4>{preset.id ? `Edit “${preset.name}”` : 'New preset'}</h4>
+      <div className="form-grid">
+        <label className="form-field">
+          <span>Name *</span>
+          <input className="input" type="text" placeholder="e.g. QA admin, Pokhara student" value={preset.name || ''} onChange={(e) => set({ name: e.target.value })} autoFocus />
+        </label>
+        <label className="form-field">
+          <span>Archetype</span>
+          <select className="select" value={preset.baseProfile || 'general'} onChange={(e) => set({ baseProfile: e.target.value as ProfileType })}>
+            {PROFILES.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field wide">
+          <span>Description</span>
+          <input className="input" type="text" placeholder="What this persona is for" value={preset.description || ''} onChange={(e) => set({ description: e.target.value })} />
+        </label>
+        <label className="form-field">
+          <span>Gender</span>
+          <select className="select" value={preset.gender || 'Random'} onChange={(e) => set({ gender: e.target.value as PersonaPreset['gender'] })}>
+            <option value="Random">Random</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+        <label className="form-field">
+          <span>Script</span>
+          <select className="select" value={preset.preferredScript || 'en'} onChange={(e) => set({ preferredScript: e.target.value as FillScript })}>
+            <option value="en">English</option>
+            <option value="np">नेपाली (Devanagari)</option>
+          </select>
+        </label>
+        <label className="form-field">
+          <span>Province</span>
+          <select className="select" value={preset.province || ''} onChange={(e) => set({ province: e.target.value, district: '', municipality: '' })}>
+            <option value="">Any</option>
+            {NepalDataEngine.provinces.map((pr) => (
+              <option key={pr.name} value={pr.name}>{pr.name} ({pr.nepaliName})</option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>District</span>
+          <select className="select" value={preset.district || ''} onChange={(e) => set({ district: e.target.value, municipality: '' })}>
+            <option value="">Any</option>
+            {districts.map((d) => (
+              <option key={d.name} value={d.name}>{d.name}</option>
+            ))}
+          </select>
+        </label>
+        {text('municipality', 'Municipality', 'e.g. Biratnagar Metropolitan City')}
+        {text('designation', 'Designation', 'e.g. QA Lead')}
+        {text('companyName', 'Company', 'e.g. Himalayan Test Labs')}
+        {text('school', 'School / college', 'e.g. Prithvi Narayan Campus')}
+        {text('faculty', 'Faculty', 'e.g. Science & Technology')}
+        {text('businessName', 'Business name', 'e.g. Birat Traders')}
+        {text('emailDomain', 'Email domain', 'e.g. example.test')}
+        <label className="form-field">
+          <span>Blood group</span>
+          <select className="select" value={preset.bloodGroup || ''} onChange={(e) => set({ bloodGroup: (e.target.value || undefined) as PersonaPreset['bloodGroup'] })}>
+            <option value="">Any</option>
+            {BLOOD_GROUPS.map((bg) => (
+              <option key={bg} value={bg}>{bg}</option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>Bank</span>
+          <select className="select" value={preset.bankName || ''} onChange={(e) => set({ bankName: e.target.value })}>
+            <option value="">Any</option>
+            {COMMERCIAL_BANKS.map((b) => (
+              <option key={b.shortName} value={b.nameEn}>{b.nameEn}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="row end">
+        <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn primary" onClick={onSave}>Save preset</button>
+      </div>
+    </div>
+  );
+}
+
+function PersonPreview({ person }: { person: SyntheticPerson }) {
+  const rows: Array<[string, string | undefined]> = [
+    ['Name', `${person.fullName} (${person.gender}, ${person.age})`],
+    ['नाम', person.devanagari?.fullName],
+    ['Date of birth', `${person.dateOfBirth} AD · ${person.dateOfBirthBS} BS`],
+    ['Mobile', person.phone],
+    ['Email', person.workEmail || person.email],
+    ['Address', person.address.fullAddress],
+    ['Citizenship', person.citizenshipNumber],
+    ['National ID', person.nationalId],
+    ['Occupation', [person.designation || person.occupation, person.companyName].filter(Boolean).join(' · ')],
+    ['Student', person.studentId ? `${person.studentId} · ${person.school} (${person.faculty})` : undefined],
+    ['Guardian', person.guardianName ? `${person.guardianName} · ${person.guardianPhone}` : undefined],
+    ['Business', person.businessName ? `${person.businessName} (${person.businessType}) · VAT ${person.vatNumber}` : undefined],
+    ['PAN', person.panNumber],
+    ['Farm', person.cropType ? `${person.cropType} · ${person.cooperative}` : undefined],
+    ['Bank', person.bankName ? `${person.bankName}, ${person.bankBranch} · ${person.bankAccountNumber}` : undefined],
+    ['Blood group', person.bloodGroup],
+  ];
+  return (
+    <dl className="card preview">
+      {rows
+        .filter(([, v]) => v)
+        .map(([k, v]) => (
+          <div className="preview-row" key={k}>
+            <dt>{k}</dt>
+            <dd lang={k === 'नाम' ? 'ne' : undefined}>{v}</dd>
+          </div>
+        ))}
+    </dl>
   );
 }

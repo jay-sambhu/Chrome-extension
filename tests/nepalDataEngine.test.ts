@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { NepalDataEngine } from '../src/generator/nepalDataEngine';
-import { NEPAL_GEOGRAPHY, MALE_FIRST_NAMES, FEMALE_FIRST_NAMES, SURNAMES } from '../src/generator/nepalData';
+
+const MALE_FIRST_NAMES = NepalDataEngine.maleNames;
+const FEMALE_FIRST_NAMES = NepalDataEngine.femaleNames;
+const SURNAMES = NepalDataEngine.surnames;
 
 describe('Phase 2 — Nepal Data Engine', () => {
   it('contains all 7 official provinces of Nepal', () => {
@@ -98,22 +101,67 @@ describe('Phase 2 — Nepal Data Engine', () => {
     expect(SURNAMES).toContain('Tamang');   // Tamang
   });
 
-  it('ensures NEPAL_GEOGRAPHY provides a complete tree with 77 districts and municipalities', () => {
-    expect(NEPAL_GEOGRAPHY.length).toBe(7);
-
+  it('lists real local levels (with Devanagari names) for every one of the 77 districts', () => {
     let totalDistricts = 0;
-    NEPAL_GEOGRAPHY.forEach((prov) => {
-      totalDistricts += prov.districts.length;
-      prov.districts.forEach((dist) => {
-        expect(dist.municipalities.length).toBeGreaterThan(0);
-        dist.municipalities.forEach((m) => {
+    NepalDataEngine.getProvinces().forEach((prov) => {
+      const districts = NepalDataEngine.getDistrictsByProvince(prov.name);
+      totalDistricts += districts.length;
+      districts.forEach((dist) => {
+        const munis = NepalDataEngine.getMunicipalitiesByDistrict(dist.name);
+        expect(munis.length).toBeGreaterThan(0);
+        munis.forEach((m) => {
           expect(m.name).toBeTruthy();
-          expect(m.maxWards).toBeGreaterThan(0);
+          expect(m.maxWards).toBeGreaterThanOrEqual(5);
+          expect(m.maxWards).toBeLessThanOrEqual(33);
+          expect(m.nameNp).toMatch(/^[\u0900-\u097F\s.\-]+$/);
+          expect(m.name.endsWith(m.type)).toBe(true);
         });
       });
     });
 
     expect(totalDistricts).toBe(77);
+  });
+
+  it('matches the official count of 753 local levels by type', () => {
+    const count = (type: string) => NepalDataEngine.municipalities.filter((m) => m.type === type).length;
+    expect(NepalDataEngine.municipalities.length).toBe(753);
+    expect(count('Metropolitan City')).toBe(6);
+    expect(count('Sub-Metropolitan City')).toBe(11);
+    expect(count('Municipality')).toBe(276);
+    expect(count('Rural Municipality')).toBe(460);
+
+    const keys = NepalDataEngine.municipalities.map((m) => `${m.district}|${m.name}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('never synthesizes municipality names', () => {
+    expect(() => NepalDataEngine.getRandomMunicipality('Atlantis')).toThrow();
+    for (const dist of NepalDataEngine.districts) {
+      const muni = NepalDataEngine.getRandomMunicipality(dist.name, 'Rural Municipality');
+      expect(NepalDataEngine.municipalities).toContain(muni);
+    }
+  });
+
+  it('finds local levels by full or short name', () => {
+    expect(NepalDataEngine.findMunicipality('Pokhara')?.name).toBe('Pokhara Metropolitan City');
+    expect(NepalDataEngine.findMunicipality('biratnagar metropolitan city')?.district).toBe('Morang');
+    expect(NepalDataEngine.findMunicipality('Madi', 'Chitwan')?.type).toBe('Municipality');
+    expect(NepalDataEngine.findMunicipality('Madi', 'Kaski')?.type).toBe('Rural Municipality');
+    expect(NepalDataEngine.findMunicipality('Nowhere')).toBeUndefined();
+  });
+
+  it('employs education occupations at schools, colleges or universities', () => {
+    const education = NepalDataEngine.occupations.filter((o) => o.companyType === 'Education');
+    const institutionNames = NepalDataEngine.institutions.map((i) => i.name);
+    education.forEach((occ) => {
+      for (let i = 0; i < 10; i++) {
+        expect(institutionNames).toContain(NepalDataEngine.getEmployerForOccupation(occ));
+      }
+    });
+  });
+
+  it('has no duplicate toles', () => {
+    expect(new Set(NepalDataEngine.toles).size).toBe(NepalDataEngine.toles.length);
   });
 
   it('returns valid random samples from NepalDataEngine helper queries', () => {

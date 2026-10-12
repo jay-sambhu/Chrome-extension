@@ -6,17 +6,31 @@ import {
   generateDateOfBirth,
   generatePanNumber,
 } from '../src/generator/personGenerator';
-import { NEPAL_GEOGRAPHY, PHONE_PREFIXES } from '../src/generator/nepalData';
 import { NepalDataEngine } from '../src/generator/nepalDataEngine';
 import { ProfileType } from '../src/types';
 
+const PHONE_PREFIXES = NepalDataEngine.telecom.allMobilePrefixes;
+
+function completedYearsAt(dob: string, today: string): number {
+  const [by, bm, bd] = dob.split('-').map(Number);
+  const [ty, tm, td] = today.split('-').map(Number);
+  return ty - by - (tm < bm || (tm === bm && td < bd) ? 1 : 0);
+}
+
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 describe('Phase 3 — Synthetic Person Generator & Consistency Engine', () => {
   it('generates date of birth consistent with given age constraints', () => {
-    const { dob, age } = generateDateOfBirth(25, 30);
-    expect(age).toBeGreaterThanOrEqual(25);
-    expect(age).toBeLessThanOrEqual(30);
-    const birthYear = parseInt(dob.split('-')[0], 10);
-    expect(new Date().getFullYear() - birthYear).toBe(age);
+    const now = new Date(2026, 9, 12);
+    for (let i = 0; i < 500; i++) {
+      const { dob, age } = generateDateOfBirth(25, 30, now);
+      expect(age).toBeGreaterThanOrEqual(25);
+      expect(age).toBeLessThanOrEqual(30);
+      expect(completedYearsAt(dob, '2026-10-12')).toBe(age);
+    }
   });
 
 
@@ -64,16 +78,17 @@ describe('Phase 3 — Synthetic Person Generator & Consistency Engine', () => {
       const addr = person.address;
 
       // 1. Province exists
-      const province = NEPAL_GEOGRAPHY.find((p) => p.name === addr.province);
+      const province = NepalDataEngine.getProvinces().find((p) => p.name === addr.province);
       expect(province).toBeDefined();
 
       // 2. District strictly belongs to that province
-      const district = province!.districts.find((d) => d.name === addr.district);
+      const district = NepalDataEngine.getDistrictsByProvince(province!.name).find((d) => d.name === addr.district);
       expect(district).toBeDefined();
 
       // 3. Municipality belongs to that district
-      const municipality = district!.municipalities.find((m) => m.name === addr.municipality);
+      const municipality = NepalDataEngine.getMunicipalitiesByDistrict(district!.name).find((m) => m.name === addr.municipality);
       expect(municipality).toBeDefined();
+      expect(addr.municipalityType).toBe(municipality!.type);
 
       // 4. Ward is strictly within the valid range
       expect(addr.ward).toBeGreaterThanOrEqual(1);
@@ -83,10 +98,8 @@ describe('Phase 3 — Synthetic Person Generator & Consistency Engine', () => {
       const expectedAreaCode = NepalDataEngine.getAreaCodeForDistrict(addr.district);
       expect(person.telephone.startsWith(`${expectedAreaCode}-`)).toBe(true);
 
-      // 6. Age & birth year match current year
-      const birthYear = parseInt(person.dateOfBirth.split('-')[0], 10);
-      const currentYear = new Date().getFullYear();
-      expect(currentYear - birthYear).toBe(person.age);
+      // 6. Age is the exact completed years for the DOB
+      expect(completedYearsAt(person.dateOfBirth, localToday())).toBe(person.age);
     }
   });
 
@@ -116,7 +129,7 @@ describe('Phase 3 — Synthetic Person Generator & Consistency Engine', () => {
     expect(employee.profileType).toBe('employee');
     expect(employee.employeeId).toMatch(/^EMP-\d{5}$/);
     expect(employee.panNumber).toMatch(/^\d{9}$/);
-    expect(employee.workEmail).toContain('.com.np');
+    expect(employee.workEmail).toMatch(/@[a-z0-9]+\.example\.test$/);
     expect(employee.designation).toBeTruthy();
     expect(employee.salary).toContain('NPR');
   });

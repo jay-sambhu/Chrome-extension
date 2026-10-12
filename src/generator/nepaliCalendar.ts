@@ -1,4 +1,4 @@
-import { toNepaliNumerals } from './devanagariEngine';
+import { toNepaliNumerals } from './numerals';
 
 export interface BsMonthInfo {
   number: number; // 1 to 12
@@ -23,25 +23,275 @@ export const BS_MONTHS: BsMonthInfo[] = [
 ];
 
 /**
- * Converts AD YYYY-MM-DD date to approximate Nepali Bikram Sambat (BS) YYYY-MM-DD.
- * Nepal BS calendar is approximately +56.7 years ahead (Baishakh 1 aligns with mid-April).
+ * Number of days in each Bikram Sambat month (Baishakh..Chaitra) for BS 1970–2100.
+ * BS 2000–2083 is the officially published calendar (cross-checked against three
+ * independent open-source converters, which agree on every cell). Years outside
+ * that window come from the nepali-datetime / bikram-sambat datasets; years after
+ * 2083 are provisional projections and may shift by a day once officially published.
+ */
+export const BS_CALENDAR_START_YEAR = 1970;
+export const BS_CALENDAR_END_YEAR = 2100;
+
+const BS_MONTH_DAYS: ReadonlyArray<ReadonlyArray<number>> = [
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1970
+  [31, 31, 32, 31, 32, 30, 30, 29, 30, 29, 30, 30], // 1971
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 1972
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 1973
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1974
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 1975
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 1976
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 1977
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1978
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 1979
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 1980
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 1981
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1982
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 1983
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 1984
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 1985
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1986
+  [31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 1987
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 1988
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 1989
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1990
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 1991
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 1992
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1993
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1994
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 1995
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 1996
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1997
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 1998
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 1999
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2000
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2001
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2002
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2003
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2004
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2005
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2006
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2007
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 29, 31], // 2008
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2009
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2010
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2011
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 2012
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2013
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2014
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2015
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 2016
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2017
+  [31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2018
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2019
+  [31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30], // 2020
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2021
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 2022
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2023
+  [31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30], // 2024
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2025
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2026
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2027
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2028
+  [31, 31, 32, 31, 32, 30, 30, 29, 30, 29, 30, 30], // 2029
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2030
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2031
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2032
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2033
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2034
+  [30, 32, 31, 32, 31, 31, 29, 30, 30, 29, 29, 31], // 2035
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2036
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2037
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2038
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 2039
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2040
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2041
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2042
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 2043
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2044
+  [31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2045
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2046
+  [31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30], // 2047
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2048
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 2049
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2050
+  [31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30], // 2051
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2052
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 2053
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2054
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2055
+  [31, 31, 32, 31, 32, 30, 30, 29, 30, 29, 30, 30], // 2056
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2057
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2058
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2059
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2060
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2061
+  [30, 32, 31, 32, 31, 31, 29, 30, 29, 30, 29, 31], // 2062
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2063
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2064
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2065
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 29, 31], // 2066
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2067
+  [31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2068
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2069
+  [31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30], // 2070
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2071
+  [31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30], // 2072
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2073
+  [31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30], // 2074
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2075
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 2076
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2077
+  [31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30], // 2078
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2079
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30], // 2080
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31], // 2081
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2082
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30], // 2083
+  [31, 31, 32, 31, 31, 30, 30, 30, 29, 30, 30, 30], // 2084
+  [31, 32, 31, 32, 30, 31, 30, 30, 29, 30, 30, 30], // 2085
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30], // 2086
+  [31, 31, 32, 31, 31, 31, 30, 30, 29, 30, 30, 30], // 2087
+  [30, 31, 32, 32, 30, 31, 30, 30, 29, 30, 30, 30], // 2088
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30], // 2089
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30], // 2090
+  [31, 31, 32, 31, 31, 31, 30, 30, 29, 30, 30, 30], // 2091
+  [30, 31, 32, 32, 31, 30, 30, 30, 29, 30, 30, 30], // 2092
+  [30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30], // 2093
+  [31, 31, 32, 31, 31, 30, 30, 30, 29, 30, 30, 30], // 2094
+  [31, 31, 32, 31, 31, 31, 30, 29, 30, 30, 30, 30], // 2095
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31], // 2096
+  [31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30], // 2097
+  [31, 31, 32, 31, 31, 31, 29, 30, 29, 30, 29, 31], // 2098
+  [31, 31, 32, 31, 31, 31, 30, 29, 29, 30, 30, 30], // 2099
+  [31, 32, 31, 32, 30, 31, 30, 29, 30, 29, 30, 30], // 2100
+];
+
+/** Reference anchor: 1943-04-14 AD === 2000-01-01 BS. */
+const BS_ANCHOR_YEAR = 2000;
+const AD_ANCHOR_UTC = Date.UTC(1943, 3, 14);
+const MS_PER_DAY = 86_400_000;
+
+export interface DateParts {
+  year: number;
+  month: number; // 1-12
+  day: number;
+}
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, '0');
+}
+
+function formatParts({ year, month, day }: DateParts): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+function parseIsoParts(dateStr: string): DateParts | null {
+  const match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(dateStr.trim());
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+/** Cumulative day offsets of each BS year start relative to 1970-01-01 BS (length = years + 1). */
+const BS_YEAR_START_OFFSETS: number[] = BS_MONTH_DAYS.reduce<number[]>(
+  (acc, months) => {
+    acc.push(acc[acc.length - 1] + months.reduce((sum, d) => sum + d, 0));
+    return acc;
+  },
+  [0]
+);
+
+/**
+ * Returns the number of days in a BS month, or 0 when the year/month is outside the supported table.
+ */
+export function getBsMonthDays(year: number, month: number): number {
+  if (year < BS_CALENDAR_START_YEAR || year > BS_CALENDAR_END_YEAR || month < 1 || month > 12) return 0;
+  return BS_MONTH_DAYS[year - BS_CALENDAR_START_YEAR][month - 1];
+}
+
+/**
+ * Converts AD calendar parts to BS calendar parts. Returns null if invalid or out of range.
+ */
+export function adPartsToBs(ad: DateParts): DateParts | null {
+  const utc = Date.UTC(ad.year, ad.month - 1, ad.day);
+  const check = new Date(utc);
+  if (
+    isNaN(utc) ||
+    check.getUTCFullYear() !== ad.year ||
+    check.getUTCMonth() !== ad.month - 1 ||
+    check.getUTCDate() !== ad.day
+  ) {
+    return null;
+  }
+
+  // Days since 1970-01-01 BS
+  let offset = Math.round((utc - AD_ANCHOR_UTC) / MS_PER_DAY) + BS_YEAR_START_OFFSETS[BS_ANCHOR_YEAR - BS_CALENDAR_START_YEAR];
+  if (offset < 0 || offset >= BS_YEAR_START_OFFSETS[BS_YEAR_START_OFFSETS.length - 1]) return null;
+
+  let yearIndex = 0;
+  while (BS_YEAR_START_OFFSETS[yearIndex + 1] <= offset) yearIndex++;
+  const year = BS_CALENDAR_START_YEAR + yearIndex;
+  offset -= BS_YEAR_START_OFFSETS[yearIndex];
+
+  let month = 1;
+  while (offset >= getBsMonthDays(year, month)) {
+    offset -= getBsMonthDays(year, month);
+    month++;
+  }
+
+  return { year, month, day: offset + 1 };
+}
+
+/**
+ * Converts BS calendar parts to AD calendar parts. Returns null if invalid or out of range.
+ */
+export function bsPartsToAd(bs: DateParts): DateParts | null {
+  const monthDays = getBsMonthDays(bs.year, bs.month);
+  if (!monthDays || bs.day < 1 || bs.day > monthDays) return null;
+
+  let offset = bs.day - 1;
+  for (let m = 1; m < bs.month; m++) offset += getBsMonthDays(bs.year, m);
+  offset +=
+    BS_YEAR_START_OFFSETS[bs.year - BS_CALENDAR_START_YEAR] -
+    BS_YEAR_START_OFFSETS[BS_ANCHOR_YEAR - BS_CALENDAR_START_YEAR];
+
+  const d = new Date(AD_ANCHOR_UTC + offset * MS_PER_DAY);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
+
+/**
+ * Converts an AD date string (YYYY-MM-DD) to the exact Nepali Bikram Sambat (BS) date string (YYYY-MM-DD)
+ * using the BS month-length table. Returns '' for invalid or unsupported dates.
  */
 export function convertAdToBs(adDateStr: string): string {
-  const parts = adDateStr.split('-');
-  if (parts.length !== 3) return '';
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const day = parseInt(parts[2], 10);
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+  const parts = parseIsoParts(adDateStr);
+  if (!parts) return '';
+  const bs = adPartsToBs(parts);
+  return bs ? formatParts(bs) : '';
+}
 
-  const isAfterNewYear = month > 4 || (month === 4 && day >= 14);
-  const bsYear = isAfterNewYear ? year + 57 : year + 56;
-  const bsMonth = ((month - 4 + 12) % 12) + 1;
-  const bsDay = Math.min(day, 30);
+/**
+ * Converts a BS date string (YYYY-MM-DD) to the AD date string (YYYY-MM-DD).
+ * Returns '' for invalid or unsupported dates.
+ */
+export function convertBsToAd(bsDateStr: string): string {
+  const parts = parseIsoParts(bsDateStr);
+  if (!parts) return '';
+  const ad = bsPartsToAd(parts);
+  return ad ? formatParts(ad) : '';
+}
 
-  const bsMonthStr = bsMonth.toString().padStart(2, '0');
-  const bsDayStr = bsDay.toString().padStart(2, '0');
-  return `${bsYear}-${bsMonthStr}-${bsDayStr}`;
+/**
+ * Formats a JS Date (local calendar day) as an AD YYYY-MM-DD string.
+ */
+export function toAdDateString(date: Date): string {
+  return formatParts({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() });
+}
+
+/**
+ * Today's date in BS (based on the local calendar day).
+ */
+export function getTodayBs(today: Date = new Date()): string {
+  return convertAdToBs(toAdDateString(today));
 }
 
 export type BsDateFormat = 'YYYY-MM-DD' | 'YYYY/MM/DD' | 'DD/MM/YYYY' | 'DD-MM-YYYY';

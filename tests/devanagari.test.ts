@@ -6,6 +6,7 @@ import {
   toNepaliNumerals,
   transliterateMunicipality,
   generateDevanagariDetails,
+  FACULTIES_DEVANAGARI,
 } from '../src/generator/devanagariEngine';
 import { detectFieldType, detectTargetScript } from '../src/content/detector';
 import { getFieldValue, fillPage } from '../src/content/filler';
@@ -92,7 +93,7 @@ describe('Phase 1.1 — Devanagari Script (नेपाली युनिको
       const student = generateSyntheticPerson('student');
       expect(student.devanagari).toBeDefined();
       expect(student.devanagari?.grade).toBeTruthy();
-      expect(student.devanagari?.faculty).toContain('विज्ञान');
+      expect(student.devanagari?.faculty).toBe(FACULTIES_DEVANAGARI[student.faculty!]);
       if (student.guardianName) {
         expect(student.devanagari?.guardianName).toBeTruthy();
         expect(/[\u0900-\u097F]/.test(student.devanagari!.guardianName!)).toBe(true);
@@ -137,6 +138,15 @@ describe('Phase 1.1 — Devanagari Script (नेपाली युनिको
         id: 'name_np',
       });
       expect(detected).toBe('np');
+    });
+
+    it('lets bilingual labels follow the user preference, and honours explicit English markers', () => {
+      const base = { placeholder: '', title: '', name: '', id: '' };
+      expect(detectTargetScript({ ...base, label: 'District (जिल्ला)' })).toBeUndefined();
+      expect(detectTargetScript({ ...base, label: 'Ward Number (वडा नं.)', placeholder: 'e.g. 4' })).toBeUndefined();
+      expect(detectTargetScript({ ...base, label: 'First Name (English)' })).toBe('en');
+      expect(detectTargetScript({ ...base, label: 'पूरा नाम (नेपाली युनिकोडमा)' })).toBe('np');
+      expect(detectTargetScript({ ...base, label: 'नाम (अंग्रेजीमा)' })).toBe('en');
     });
 
     it('returns undefined for standard English fields', () => {

@@ -1,7 +1,7 @@
 import { scanFormFields } from './detector';
-import { clearForm, fillPage, fillPageAsync, inspectPageFields, revertForm } from './filler';
-import { ExtensionMessage, GeminiConfig } from '../types';
-import { classifyUnknownField, resolveGeminiModel } from '../services/geminiClassifier';
+import { clearForm, fillPageAsync, inspectPageFields, revertForm } from './filler';
+import { classifyViaBackground } from './backgroundClassifier';
+import { ExtensionMessage, UndoResult } from '../types';
 import { getDomainMapping } from '../services/domainMapping';
 import { initFloatingBadge } from './floatingBadge';
 import {
@@ -10,68 +10,50 @@ import {
   clearSessionPersona,
   getSessionOptions,
   setSessionOptions,
+  setSessionPersistenceEnabled,
 } from '../services/sessionPersona';
 
-console.log('[Nepal Test Filler] Content script active.');
+// The content script runs in every frame (all_frames). chrome.tabs.sendMessage without a
+// frameId reaches all of them, but only the first sendResponse is delivered, so the top
+// frame owns the reply and subframes act silently.
+const isTopFrame = (() => {
+  try {
+    return window.top === window;
+  } catch {
+    return false;
+  }
+})();
 
-// Initialize inline floating badge
-if (typeof document !== 'undefined') {
-  initFloatingBadge(document);
-}
-
-function broadcastToChildFrames(payload: any) {
-  if (typeof document === 'undefined') return;
-  const iframes = document.querySelectorAll('iframe');
-  iframes.forEach((iframe) => {
-    try {
-      iframe.contentWindow?.postMessage(payload, '*');
-    } catch {
-      // ignore cross-domain postMessage errors
-    }
-  });
-}
-
-// Cross-frame listener for embedded subframes (e.g. eSewa / Khalti payment dialogs)
-if (typeof window !== 'undefined') {
-  window.addEventListener('message', (event: MessageEvent) => {
-    if (!event.data || typeof event.data !== 'object') return;
-    if (event.data.__nepal_filler_cross_frame__) {
-      const { action, person, options } = event.data;
-      if (action === 'FILL_PAGE' && person && options) {
-        fillPage(person, options, document);
-      } else if (action === 'UNDO_FILL') {
-        revertForm(document);
-      } else if (action === 'CLEAR_FORM') {
-        clearForm(document);
-      }
-    }
-  });
+function plural(count: number, noun = 'field'): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 function showInPageFeedback(text: string) {
-  if (typeof document === 'undefined' || !document.body) return;
+  if (!document.body) return;
   const id = '__nepal_filler_toast';
-  const existing = document.getElementById(id);
-  if (existing) existing.remove();
+  document.getElementById(id)?.remove();
 
   const toast = document.createElement('div');
   toast.id = id;
-  toast.textContent = `🇳🇵 ${text}`;
+  toast.setAttribute('data-nepal-filler-ui', '');
+  toast.setAttribute('role', 'status');
+  toast.textContent = text;
   Object.assign(toast.style, {
     position: 'fixed',
     bottom: '24px',
     right: '24px',
     zIndex: '2147483647',
-    backgroundColor: '#0f172a',
-    color: '#f8fafc',
-    padding: '8px 16px',
-    borderRadius: '8px',
+    backgroundColor: '#1c1917',
+    color: '#fafaf9',
+    padding: '9px 14px 9px 12px',
+    borderRadius: '10px',
+    borderLeft: '3px solid #d92644',
     fontSize: '13px',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    lineHeight: '1.4',
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.28)',
     pointerEvents: 'none',
-    transition: 'opacity 0.3s ease, transform 0.3s ease',
+    transition: 'opacity 0.25s ease, transform 0.25s ease',
     opacity: '0',
     transform: 'translateY(8px)',
   });
@@ -83,210 +65,160 @@ function showInPageFeedback(text: string) {
   setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.transform = 'translateY(8px)';
-    setTimeout(() => toast.remove(), 350);
-  }, 2500);
+    setTimeout(() => toast.remove(), 300);
+  }, 2400);
 }
 
-// In-page keyboard shortcut for Alt+Shift+U (Undo / Clear Form)
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.altKey && e.shiftKey && (e.key === 'U' || e.key === 'u' || e.code === 'KeyU')) {
-      e.preventDefault();
-      try {
-        const result = revertForm(document);
-        console.log(`[Nepal Test Filler] Alt+Shift+U triggered: ${result.action} ${result.revertedCount} fields.`);
-        showInPageFeedback(
-          result.action === 'reverted'
-            ? `Reverted ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
-            : `Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
-        );
-      } catch (err) {
-        console.error('[Nepal Test Filler] Shortcut undo error:', err);
-      }
-    }
+function describeUndo(result: UndoResult): string {
+  return result.action === 'reverted'
+    ? `Nepal Test Filler: reverted ${plural(result.revertedCount)}`
+    : `Nepal Test Filler: cleared ${plural(result.revertedCount)}`;
+}
+
+/** Lets the popup add up fields filled inside iframes (their replies are not delivered). */
+function reportFrameFill(count: number) {
+  if (isTopFrame || count === 0) return;
+  chrome.runtime.sendMessage({ action: 'FRAME_FILLED', count }).catch(() => {
+    // Popup closed; nothing is listening.
   });
 }
 
-chrome.runtime.onMessage.addListener(
-  (
-    message: ExtensionMessage,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: unknown) => void
-  ) => {
-    if (message.action === 'PING') {
-      sendResponse({ status: 'ok', version: '0.1.0' });
-      return false;
-    }
+// Guard against double registration when the script is injected again into a tab
+// (e.g. by the popup's fallback after the page had no responsive content script).
+const loadedFlag = '__nepalTestFillerContentLoaded';
+const scope = globalThis as typeof globalThis & { [loadedFlag]?: boolean };
 
-    if (message.action === 'SCAN_PAGE') {
-      try {
-        const detected = scanFormFields();
-        const count = detected.length;
-        const types = detected.map((f) => f.type);
-        sendResponse({ status: 'ok', count, types });
-      } catch (err) {
-        console.error('[Nepal Test Filler] Scan error:', err);
-        sendResponse({ status: 'error', message: String(err) });
-      }
-      return false;
-    }
+if (!scope[loadedFlag]) {
+  scope[loadedFlag] = true;
+  initFloatingBadge(document);
 
-    if (message.action === 'GET_PAGE_FIELDS') {
-      (async () => {
-        try {
-          const domain = window.location.hostname || 'localhost';
-          const domainConfig = await getDomainMapping(domain);
-          const fields = inspectPageFields(document, domainConfig?.rules || []);
-          sendResponse({ status: 'ok', domain, fields });
-        } catch (err) {
-          console.error('[Nepal Test Filler] Inspect page fields error:', err);
-          sendResponse({ status: 'error', message: String(err) });
+  chrome.storage.local.get(['enableSessionPersistence'], (res: Record<string, unknown>) => {
+    if (typeof res.enableSessionPersistence === 'boolean') {
+      setSessionPersistenceEnabled(res.enableSessionPersistence);
+    }
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.enableSessionPersistence) {
+      setSessionPersistenceEnabled(changes.enableSessionPersistence.newValue !== false);
+    }
+  });
+
+  chrome.runtime.onMessage.addListener(
+    (
+      message: ExtensionMessage,
+      _sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: unknown) => void
+    ) => {
+      const reply = (response: unknown) => {
+        if (isTopFrame) sendResponse(response);
+      };
+
+      switch (message.action) {
+        case 'PING':
+          reply({ status: 'ok', version: chrome.runtime.getManifest().version });
+          return false;
+
+        case 'SCAN_PAGE': {
+          if (!isTopFrame) return false;
+          try {
+            const detected = scanFormFields();
+            reply({ status: 'ok', count: detected.length, types: detected.map((f) => f.type) });
+          } catch (err) {
+            reply({ status: 'error', message: String(err) });
+          }
+          return false;
         }
-      })();
-      return true;
-    }
 
-    if (message.action === 'CLASSIFY_FIELD') {
-      (async () => {
-        try {
-          const store = (await chrome.storage.local.get([
-            'geminiApiKey',
-            'geminiAiClassificationEnabled',
-            'geminiModel',
-          ])) as Record<string, any>;
-          const config: GeminiConfig = {
-            apiKey: String(store.geminiApiKey || ''),
-            enabled: Boolean(store.geminiAiClassificationEnabled),
-            model: resolveGeminiModel(store.geminiModel),
-          };
-          const result = await classifyUnknownField(message.payload, config);
-          sendResponse({ status: 'ok', result });
-        } catch (err) {
-          sendResponse({ status: 'error', message: String(err) });
+        case 'GET_PAGE_FIELDS': {
+          if (!isTopFrame) return false;
+          (async () => {
+            try {
+              const domain = window.location.hostname || 'localhost';
+              const domainConfig = await getDomainMapping(domain);
+              const fields = inspectPageFields(document, domainConfig?.rules || []);
+              reply({ status: 'ok', domain, fields });
+            } catch (err) {
+              reply({ status: 'error', message: String(err) });
+            }
+          })();
+          return true;
         }
-      })();
-      return true;
-    }
 
-    if (message.action === 'UNDO_FILL') {
-      try {
-        const result = revertForm(document);
-        broadcastToChildFrames({ __nepal_filler_cross_frame__: true, action: 'UNDO_FILL' });
-        showInPageFeedback(
-          result.action === 'reverted'
-            ? `Reverted ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
-            : `Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`
-        );
-        sendResponse({ status: 'ok', result });
-      } catch (err) {
-        console.error('[Nepal Test Filler] Undo error:', err);
-        sendResponse({ status: 'error', message: String(err) });
-      }
-      return false;
-    }
-
-    if (message.action === 'CLEAR_FORM') {
-      try {
-        const result = clearForm(document);
-        broadcastToChildFrames({ __nepal_filler_cross_frame__: true, action: 'CLEAR_FORM' });
-        showInPageFeedback(`Cleared ${result.revertedCount} field${result.revertedCount === 1 ? '' : 's'}`);
-        sendResponse({ status: 'ok', result });
-      } catch (err) {
-        console.error('[Nepal Test Filler] Clear error:', err);
-        sendResponse({ status: 'error', message: String(err) });
-      }
-      return false;
-    }
-
-    if (message.action === 'GET_SESSION_PERSONA') {
-      try {
-        const person = getSessionPersona();
-        const options = getSessionOptions();
-        sendResponse({ status: 'ok', person, options });
-      } catch (err) {
-        sendResponse({ status: 'error', message: String(err) });
-      }
-      return false;
-    }
-
-    if (message.action === 'SET_SESSION_PERSONA') {
-      try {
-        setSessionPersona(message.person);
-        if (message.options) {
-          setSessionOptions(message.options);
+        case 'UNDO_FILL':
+        case 'CLEAR_FORM': {
+          try {
+            const result = message.action === 'UNDO_FILL' ? revertForm(document) : clearForm(document);
+            if (result.revertedCount > 0) showInPageFeedback(describeUndo(result));
+            reply({ status: 'ok', result });
+          } catch (err) {
+            reply({ status: 'error', message: String(err) });
+          }
+          return false;
         }
-        sendResponse({ status: 'ok' });
-      } catch (err) {
-        sendResponse({ status: 'error', message: String(err) });
-      }
-      return false;
-    }
 
-    if (message.action === 'CLEAR_SESSION_PERSONA') {
-      try {
-        clearSessionPersona();
-        sendResponse({ status: 'ok' });
-      } catch (err) {
-        sendResponse({ status: 'error', message: String(err) });
-      }
-      return false;
-    }
+        case 'GET_SESSION_PERSONA': {
+          if (!isTopFrame) return false;
+          try {
+            reply({ status: 'ok', person: getSessionPersona(), options: getSessionOptions() });
+          } catch (err) {
+            reply({ status: 'error', message: String(err) });
+          }
+          return false;
+        }
 
-    if (message.action === 'FILL_PAGE') {
-      (async () => {
-        try {
-          // Persist this active persona in sessionStorage for multi-step wizards / SPA persistence
-          if (message.person) {
+        case 'SET_SESSION_PERSONA': {
+          try {
             setSessionPersona(message.person);
+            if (message.options) setSessionOptions(message.options);
+            reply({ status: 'ok' });
+          } catch (err) {
+            reply({ status: 'error', message: String(err) });
           }
-          if (message.options) {
-            setSessionOptions(message.options);
-          }
-          const domain = window.location.hostname || 'localhost';
-          const domainConfig = await getDomainMapping(domain);
-
-          let geminiConfig: GeminiConfig | undefined;
-          if (message.options?.enableAiClassification) {
-            const store = (await chrome.storage.local.get([
-              'geminiApiKey',
-              'geminiAiClassificationEnabled',
-              'geminiModel',
-            ])) as Record<string, any>;
-            geminiConfig = {
-              apiKey: String(store.geminiApiKey || ''),
-              enabled: Boolean(store.geminiAiClassificationEnabled),
-              model: resolveGeminiModel(store.geminiModel),
-            };
-          }
-
-          const result = await fillPageAsync(
-            message.person,
-            message.options,
-            geminiConfig,
-            document,
-            domainConfig?.rules || []
-          );
-
-          // Broadcast to embedded payment/dialog iframes (eSewa / Khalti modals)
-          broadcastToChildFrames({
-            __nepal_filler_cross_frame__: true,
-            action: 'FILL_PAGE',
-            person: message.person,
-            options: message.options,
-          });
-
-          console.log(`[Nepal Test Filler] Successfully filled ${result.fieldsFilledCount} fields.`);
-          sendResponse({ status: 'ok', result });
-        } catch (err) {
-          console.error('[Nepal Test Filler] Fill error:', err);
-          sendResponse({ status: 'error', message: String(err) });
+          return false;
         }
-      })();
-      return true;
+
+        case 'CLEAR_SESSION_PERSONA': {
+          try {
+            clearSessionPersona();
+            reply({ status: 'ok' });
+          } catch (err) {
+            reply({ status: 'error', message: String(err) });
+          }
+          return false;
+        }
+
+        case 'FILL_PAGE': {
+          (async () => {
+            try {
+              // Retain this persona for later steps of multi-step wizards / SPAs
+              if (message.person) setSessionPersona(message.person);
+              if (message.options) setSessionOptions(message.options);
+
+              const domainConfig = await getDomainMapping(window.location.hostname || 'localhost');
+              const result = await fillPageAsync(
+                message.person,
+                message.options,
+                undefined,
+                document,
+                domainConfig?.rules || [],
+                message.options?.enableAiClassification ? classifyViaBackground : undefined
+              );
+
+              if (result.fieldsFilledCount > 0) {
+                showInPageFeedback(`Nepal Test Filler: filled ${plural(result.fieldsFilledCount)}`);
+              }
+              reportFrameFill(result.fieldsFilledCount);
+              reply({ status: 'ok', result });
+            } catch (err) {
+              reply({ status: 'error', message: String(err) });
+            }
+          })();
+          return isTopFrame;
+        }
+
+        default:
+          return false;
+      }
     }
-
-    return false;
-  }
-);
-
-
+  );
+}

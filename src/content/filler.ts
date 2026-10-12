@@ -1,9 +1,13 @@
 import {
+  ClassificationResult,
+  DetectedField,
+  FieldClassificationPayload,
   FieldSnapshot,
   FillOptions,
   FillResult,
   FillScript,
   FormSnapshot,
+  GeminiConfig,
   PageFieldInspection,
   SupportedFieldType,
   SyntheticPerson,
@@ -19,8 +23,8 @@ import {
   syncCompanionDateInput,
   triggerNepaliDatepickerHooks,
 } from '../generator/nepaliCalendar';
-import { toEnglishNumerals, toNepaliNumerals } from '../generator/devanagariEngine';
-import { COMMERCIAL_BANKS } from '../generator/bankingDetails';
+import { toEnglishNumerals, toNepaliNumerals } from '../generator/numerals';
+import { COMMERCIAL_BANKS } from '../generator/banks';
 
 /**
  * Triggers native value change compatible with React, Vue, Angular and standard DOM.
@@ -207,34 +211,31 @@ function matchBankOption(
   const isBank = all.some((s) => /bank|बैंक|nabil|nic|global|rbb|nimb|everest|sanima|prabhu|kumari|siddhartha/i.test(s));
   if (!isBank) return undefined;
 
-  for (const b of COMMERCIAL_BANKS) {
-    const isTargetBank = all.some((s) => {
+  // Resolve the primary value against every bank before trying the other script's value
+  const candidates = all.flatMap((s) =>
+    COMMERCIAL_BANKS.filter((b) => {
       const sLow = s.toLowerCase();
+      return sLow.includes(b.shortName.toLowerCase()) || sLow.includes(b.nameEn.toLowerCase()) || s.includes(b.nameNp);
+    })
+  );
+
+  for (const b of candidates) {
+    const found = options.find((opt) => {
+      const val = opt.value.toLowerCase();
+      const text = opt.text.toLowerCase();
+      const shortLow = b.shortName.toLowerCase();
+      const nameEnLow = b.nameEn.toLowerCase();
       return (
-        sLow.includes(b.shortName.toLowerCase()) ||
-        sLow.includes(b.nameEn.toLowerCase()) ||
-        s.includes(b.nameNp)
+        val.includes(shortLow) ||
+        text.includes(shortLow) ||
+        val.includes(nameEnLow) ||
+        text.includes(nameEnLow) ||
+        opt.value.includes(b.nameNp) ||
+        opt.text.includes(b.nameNp) ||
+        (b.swiftCode && (opt.value.toUpperCase() === b.swiftCode || opt.text.toUpperCase().includes(b.swiftCode)))
       );
     });
-
-    if (isTargetBank) {
-      const found = options.find((opt) => {
-        const val = opt.value.toLowerCase();
-        const text = opt.text.toLowerCase();
-        const shortLow = b.shortName.toLowerCase();
-        const nameEnLow = b.nameEn.toLowerCase();
-        return (
-          val.includes(shortLow) ||
-          text.includes(shortLow) ||
-          val.includes(nameEnLow) ||
-          text.includes(nameEnLow) ||
-          opt.value.includes(b.nameNp) ||
-          opt.text.includes(b.nameNp) ||
-          (b.swiftCode && (opt.value.toUpperCase() === b.swiftCode || opt.text.toUpperCase().includes(b.swiftCode)))
-        );
-      });
-      if (found) return found;
-    }
+    if (found) return found;
   }
 
   return undefined;
@@ -305,6 +306,44 @@ function matchBloodGroupOption(
 }
 
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const GENDER_TOKENS: Record<'male' | 'female' | 'other', string[]> = {
+  male: ['male', 'm', 'man', 'men', 'boy', 'mr', 'purush', 'पुरुष', 'केटा'],
+  female: ['female', 'f', 'woman', 'women', 'girl', 'mrs', 'ms', 'mahila', 'महिला', 'केटी'],
+  other: ['other', 'others', 'o', 'third', 'nonbinary', 'non-binary', 'anya', 'अन्य', 'तेस्रो'],
+};
+
+/**
+ * Whole-word gender matcher. Substring checks are wrong here because "female" contains "male".
+ */
+export function matchesGenderText(text: string, gender: string): boolean {
+  const g = gender.trim().toLowerCase();
+  const key: keyof typeof GENDER_TOKENS =
+    g.startsWith('f') || g === 'महिला' ? 'female' : g.startsWith('m') || g === 'पुरुष' ? 'male' : 'other';
+  const words = text.toLowerCase().split(/[^a-z\u0900-\u097f-]+/).filter(Boolean);
+  return words.some((w) => GENDER_TOKENS[key].includes(w));
+}
+
+/**
+ * Collects the visible text describing a radio/checkbox: its value, labels, and aria-label.
+ */
+function describeChoice(input: HTMLElement): string {
+  const parts: string[] = [];
+  if (input instanceof HTMLInputElement) {
+    parts.push(input.value || '');
+    if (input.labels) {
+      for (const lbl of Array.from(input.labels)) parts.push(lbl.textContent || '');
+    }
+  } else {
+    parts.push(input.getAttribute('value') || '', input.textContent || '');
+  }
+  parts.push(input.getAttribute('aria-label') || '');
+  return parts.join(' ');
+}
+
 /**
  * Finds the closest matching option for a select element, supporting dual-script alternatives.
  */
@@ -315,16 +354,24 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
   const targetLower = targetValue.toLowerCase();
   const altLower = altValue ? altValue.toLowerCase() : undefined;
 
-  // 1. Try exact value or text match with primary target
-  let matchedOption = options.find(
-    (opt) => opt.value.toLowerCase() === targetLower || opt.text.toLowerCase().includes(targetLower)
-  );
+  // 1. Exact value or text match (primary target first, then the other script's value).
+  //    Exact matching must run before substring matching, otherwise "Male" selects "Female" and ward "1" selects "10".
+  const exactMatch = (needle: string) =>
+    options.find((opt) => opt.value.trim().toLowerCase() === needle || opt.text.trim().toLowerCase() === needle);
+  let matchedOption = exactMatch(targetLower.trim()) || (altLower ? exactMatch(altLower.trim()) : undefined);
 
-  // 2. If no match and alternative exists (e.g. English alternative for Devanagari or vice-versa)
-  if (!matchedOption && altLower) {
-    matchedOption = options.find(
-      (opt) => opt.value.toLowerCase() === altLower || opt.text.toLowerCase().includes(altLower)
-    );
+  // 2. Substring match on option text, on word boundaries only for short targets
+  const containsMatch = (needle: string) => {
+    const n = needle.trim();
+    if (!n) return undefined;
+    if (n.length <= 3) {
+      const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(n)}($|[^\\p{L}\\p{N}])`, 'iu');
+      return options.find((opt) => re.test(opt.text));
+    }
+    return options.find((opt) => opt.text.toLowerCase().includes(n));
+  };
+  if (!matchedOption) {
+    matchedOption = containsMatch(targetLower) || (altLower ? containsMatch(altLower) : undefined);
   }
 
   // 3. BS Month option matching (Baishakh, बैशाख, 1, 01, etc.)
@@ -352,7 +399,7 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
     matchedOption = matchBloodGroupOption(options, targetValue, altValue);
   }
 
-  // 5. Partial match with primary target
+  // 8. Partial word match with primary target
   if (!matchedOption) {
     matchedOption = options.find((opt) => {
       const optText = opt.text.toLowerCase();
@@ -360,11 +407,10 @@ function fillSelectElement(select: HTMLSelectElement, targetValue: string, altVa
     });
   }
 
-  // 6. If still no match and options exist (skipping empty placeholder first option if present)
-  if (!matchedOption && options.length > 1) {
-    matchedOption = options[1].value !== '' ? options[1] : options[options.length - 1];
-  } else if (!matchedOption) {
-    matchedOption = options[0];
+  // 9. Still no match: pick the first real (non-placeholder, enabled) option
+  if (!matchedOption) {
+    const realOptions = options.filter((opt) => !opt.disabled && opt.value !== '');
+    matchedOption = realOptions[0] || options[0];
   }
 
   if (matchedOption) {
@@ -857,11 +903,7 @@ function fillFieldElement(
   }
   if (role === 'radio') {
     if (fieldType === 'gender') {
-      const text = (elem.textContent || elem.getAttribute('value') || elem.getAttribute('aria-label') || '').toLowerCase();
-      const matchGender =
-        text.includes(person.gender.toLowerCase()) ||
-        (person.devanagari && text.includes(person.devanagari.gender.toLowerCase()));
-      if (matchGender) {
+      if (matchesGenderText(describeChoice(elem), person.gender)) {
         elem.setAttribute('aria-checked', 'true');
         elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         details.push({ field: fieldIdentifier || 'custom_radio_gender', type: fieldType, value: true });
@@ -883,14 +925,7 @@ function fillFieldElement(
   if (tagName === 'input' && (inputType === 'checkbox' || inputType === 'radio')) {
     const inputElem = elem as HTMLInputElement;
     if (fieldType === 'gender' && inputType === 'radio') {
-      const val = inputElem.value.toLowerCase();
-      const genderLower = person.gender.toLowerCase();
-      const devGender = person.devanagari?.gender.toLowerCase();
-      if (
-        val.includes(genderLower) ||
-        genderLower.includes(val) ||
-        (devGender && (val.includes(devGender) || devGender.includes(val)))
-      ) {
+      if (matchesGenderText(describeChoice(inputElem), person.gender)) {
         setNativeChecked(inputElem, true);
         details.push({ field: fieldIdentifier || 'radio_gender', type: fieldType, value: true });
         return true;
@@ -978,11 +1013,16 @@ function fillFieldElement(
   if (tagName === 'input' || tagName === 'textarea') {
     const inputElem = elem as HTMLInputElement | HTMLTextAreaElement;
     if (primaryValue) {
-      setNativeValue(inputElem, primaryValue);
+      // Number, tel, email, date and url inputs reject Devanagari digits (the value silently becomes empty)
+      const asciiOnly = /^(number|tel|email|date|datetime-local|month|url)$/.test(inputType);
+      const scriptSafe = asciiOnly ? toEnglishNumerals(primaryValue) : primaryValue;
+      const maxLength = inputElem.maxLength;
+      const value = maxLength > 0 && scriptSafe.length > maxLength ? scriptSafe.slice(0, maxLength) : scriptSafe;
+      setNativeValue(inputElem, value);
       if (tagName === 'input' && (fieldType === 'dateOfBirth' || fieldType === 'date')) {
         syncCompanionDateInput(inputElem as HTMLInputElement, person.dateOfBirthBS || '2055-01-15', 'bs');
       }
-      details.push({ field: fieldIdentifier || 'input', type: fieldType, value: primaryValue });
+      details.push({ field: fieldIdentifier || 'input', type: fieldType, value });
       return true;
     }
   }
@@ -1283,6 +1323,45 @@ export function clearForm(root: Document | HTMLElement | ShadowRoot = document):
 }
 
 /**
+ * Captures the pre-fill state, keeping the originally captured value of any field
+ * already in the snapshot so that filling twice and then undoing restores the
+ * user's own values instead of the first fill's values.
+ */
+function captureUndoSnapshot(root: Document | HTMLElement | ShadowRoot): void {
+  const fresh = captureFormSnapshot(root);
+  if (!lastFormSnapshot) {
+    lastFormSnapshot = fresh;
+    return;
+  }
+  const kept = lastFormSnapshot.fields.filter((f) => f.element.isConnected);
+  const known = new Set(kept.map((f) => f.element));
+  lastFormSnapshot = {
+    timestamp: lastFormSnapshot.timestamp,
+    fields: [...kept, ...fresh.fields.filter((f) => !known.has(f.element))],
+  };
+}
+
+/**
+ * Fills one field, isolating failures so a single hostile or unusual control
+ * (e.g. a framework that throws from its setter) cannot abort the whole fill.
+ */
+function tryFillField(
+  field: DetectedField,
+  fieldType: SupportedFieldType,
+  person: SyntheticPerson,
+  options: FillOptions,
+  details: FillResult['details'],
+  addressScope = field.addressScope
+): boolean {
+  try {
+    const targetScript = field.script || options.fillScript || options.script || 'en';
+    return fillFieldElement(field.element, fieldType, person, field.name || field.id, details, targetScript, addressScope);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fills detected fields on the webpage using the synthetic person and user options.
  * Runs 100% offline using local heuristic rule engine and domain-specific rules.
  */
@@ -1292,8 +1371,7 @@ export function fillPage(
   root: Document | HTMLElement | ShadowRoot = document,
   domainRules: FieldMappingRule[] = []
 ): FillResult {
-  // Capture initial snapshot before populating test data
-  lastFormSnapshot = captureFormSnapshot(root);
+  captureUndoSnapshot(root);
 
   const detected = scanFormFields(root);
   const details: FillResult['details'] = [];
@@ -1308,17 +1386,7 @@ export function fillPage(
       continue;
     }
 
-    const targetScript = field.script || options.fillScript || options.script || 'en';
-    const filled = fillFieldElement(
-      field.element,
-      resolvedType,
-      person,
-      field.name || field.id,
-      details,
-      targetScript,
-      field.addressScope
-    );
-    if (filled) {
+    if (tryFillField(field, resolvedType, person, options, details)) {
       fieldsFilledCount++;
     }
   }
@@ -1330,112 +1398,91 @@ export function fillPage(
   };
 }
 
+export type FieldClassifier = (payload: FieldClassificationPayload) => Promise<ClassificationResult>;
+
+/** Upper bound on AI lookups per fill so a huge page cannot burn through the user's quota. */
+const MAX_AI_CLASSIFICATIONS_PER_FILL = 25;
+
 /**
  * Asynchronous page filler that executes:
  * 1. Custom Domain Mapping Overrides (Highest priority)
  * 2. Local Heuristic Detection
  * 3. Optional Gemini AI classification for unhandled unknowns
+ *
+ * `classify` lets the content script route classification through the background
+ * service worker; when omitted, Gemini is called directly with `geminiConfig`.
  */
 export async function fillPageAsync(
   person: SyntheticPerson,
   options: FillOptions,
-  geminiConfig?: import('../types').GeminiConfig,
+  geminiConfig?: GeminiConfig,
   root: Document | HTMLElement | ShadowRoot = document,
-  domainRules: FieldMappingRule[] = []
+  domainRules: FieldMappingRule[] = [],
+  classify?: FieldClassifier
 ): Promise<FillResult> {
-  // Capture initial snapshot before populating test data
-  lastFormSnapshot = captureFormSnapshot(root);
+  captureUndoSnapshot(root);
 
   const detected = scanFormFields(root);
   const details: FillResult['details'] = [];
   let fieldsFilledCount = 0;
-  const unhandledUnknowns: typeof detected = [];
+  const unhandledUnknowns: DetectedField[] = [];
 
   for (const field of detected) {
-    const targetScript = field.script || options.fillScript || options.script || 'en';
-
     // 1. Check custom domain mapping overrides first (Highest priority!)
     const rule = matchDomainRule(field.element, domainRules);
     if (rule) {
-      if (isCategoryEnabled(rule.targetType, options)) {
-        const filled = fillFieldElement(
-          field.element,
-          rule.targetType,
-          person,
-          field.name || field.id,
-          details,
-          targetScript,
-          field.addressScope
-        );
-        if (filled) fieldsFilledCount++;
+      if (isCategoryEnabled(rule.targetType, options) && tryFillField(field, rule.targetType, person, options, details)) {
+        fieldsFilledCount++;
       }
       continue;
     }
 
     // 2. Rule-based local heuristic detector
-    if (field.type !== 'unknown' && field.type !== 'text' && isCategoryEnabled(field.type, options)) {
-      const filled = fillFieldElement(
-        field.element,
-        field.type,
-        person,
-        field.name || field.id,
-        details,
-        targetScript,
-        field.addressScope
-      );
-      if (filled) fieldsFilledCount++;
-    } else if (field.type === 'text' && field.confidence > 0.4 && isCategoryEnabled(field.type, options)) {
-      const filled = fillFieldElement(
-        field.element,
-        field.type,
-        person,
-        field.name || field.id,
-        details,
-        targetScript,
-        field.addressScope
-      );
-      if (filled) fieldsFilledCount++;
+    const isConfident = field.type !== 'unknown' && (field.type !== 'text' || field.confidence > 0.4);
+    if (isConfident) {
+      if (isCategoryEnabled(field.type, options) && tryFillField(field, field.type, person, options, details)) {
+        fieldsFilledCount++;
+      }
     } else {
       unhandledUnknowns.push(field);
     }
   }
 
   // 3. Optional Gemini AI classification for remaining unhandled fields
-  if (
-    options.enableAiClassification &&
-    geminiConfig?.enabled &&
-    geminiConfig.apiKey &&
-    unhandledUnknowns.length > 0
-  ) {
-    const { classifyUnknownField } = await import('../services/geminiClassifier');
+  const classifier: FieldClassifier | undefined =
+    classify ||
+    (geminiConfig?.enabled && geminiConfig.apiKey
+      ? async (payload) => {
+          const { classifyUnknownField } = await import('../services/geminiClassifier');
+          return classifyUnknownField(payload, geminiConfig);
+        }
+      : undefined);
+
+  if (options.enableAiClassification && classifier && unhandledUnknowns.length > 0) {
     const domain =
       typeof window !== 'undefined' && window.location?.hostname ? window.location.hostname : 'localhost';
+    const batch = unhandledUnknowns.slice(0, MAX_AI_CLASSIFICATIONS_PER_FILL);
 
-    for (const field of unhandledUnknowns) {
-      const elem = field.element as HTMLInputElement;
-      const payload: import('../types').FieldClassificationPayload = {
-        domain,
-        name: field.name,
-        id: field.id,
-        placeholder: elem.placeholder,
-        label: field.label,
-        type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
-      };
+    const classifications = await Promise.all(
+      batch.map((field) => {
+        const elem = field.element as HTMLInputElement;
+        return classifier({
+          domain,
+          name: field.name,
+          id: field.id,
+          placeholder: elem.placeholder,
+          label: field.label,
+          type: elem.getAttribute('type') || elem.tagName.toLowerCase(),
+        }).catch((): ClassificationResult => ({ fieldType: 'unknown', confidence: 0 }));
+      })
+    );
 
-      const classification = await classifyUnknownField(payload, geminiConfig);
-      if (classification.fieldType !== 'unknown' && isCategoryEnabled(classification.fieldType, options)) {
-        const targetScript = field.script || options.fillScript || options.script || 'en';
-        const filled = fillFieldElement(
-          field.element,
-          classification.fieldType,
-          person,
-          field.name || field.id,
-          details,
-          targetScript
-        );
-        if (filled) fieldsFilledCount++;
+    batch.forEach((field, i) => {
+      const { fieldType } = classifications[i];
+      if (fieldType !== 'unknown' && isCategoryEnabled(fieldType, options) && tryFillField(field, fieldType, person, options, details)) {
+        fieldsFilledCount++;
       }
-    }
+    });
   }
 
   return {
@@ -1454,9 +1501,7 @@ export function fillSingleField(
   options?: Partial<FillOptions>,
   domainRules: FieldMappingRule[] = []
 ): boolean {
-  if (!lastFormSnapshot) {
-    lastFormSnapshot = captureFormSnapshot(element.closest('form') || element.ownerDocument || document);
-  }
+  captureUndoSnapshot(element.closest('form') || element.ownerDocument || document);
 
   const rule = matchDomainRule(element, domainRules);
   const detected = detectFieldType(element);
@@ -1465,14 +1510,17 @@ export function fillSingleField(
   const targetScript = detected.script || options?.fillScript || options?.script || 'en';
   const details: FillResult['details'] = [];
 
-  return fillFieldElement(
-    element,
-    resolvedType,
-    person,
-    element.getAttribute('name') || element.id,
-    details,
-    targetScript,
-    detected.addressScope
-  );
+  try {
+    return fillFieldElement(
+      element,
+      resolvedType,
+      person,
+      element.getAttribute('name') || element.id,
+      details,
+      targetScript,
+      detected.addressScope
+    );
+  } catch {
+    return false;
+  }
 }
-

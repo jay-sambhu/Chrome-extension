@@ -11,18 +11,15 @@ const distDir = path.resolve(rootDir, 'dist');
 const pkgPath = path.resolve(rootDir, 'package.json');
 
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-const version = pkg.version || '0.1.0';
+const version = pkg.version;
 const name = pkg.name || 'nepal-test-filler';
 const outputZipName = `${name}-v${version}.zip`;
 const outputZipPath = path.resolve(rootDir, outputZipName);
 
 console.log(`📦 Packaging ${name} v${version} for Chrome Web Store...`);
 
-// 1. Build if dist directory doesn't exist or is empty
-if (!fs.existsSync(distDir) || fs.readdirSync(distDir).length === 0) {
-  console.log('⚡ Dist folder missing or empty. Running npm run build...');
-  execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
-}
+// 1. Always build fresh so the archive can never contain a stale bundle
+execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
 
 // 2. Validate essential files in dist
 const manifestPath = path.resolve(distDir, 'manifest.json');
@@ -39,6 +36,7 @@ if (manifest.version !== version) {
 const requiredFiles = [
   'manifest.json',
   'icons/icon-16.png',
+  'icons/icon-32.png',
   'icons/icon-48.png',
   'icons/icon-128.png',
   'src/popup/index.html',
@@ -60,7 +58,7 @@ if (fs.existsSync(outputZipPath)) {
 
 // 4. Create ZIP archive with manifest.json at root level
 try {
-  execSync(`zip -r -9 "${outputZipPath}" .`, {
+  execSync(`zip -r -9 -X "${outputZipPath}" . -x "*.map" -x ".DS_Store"`, {
     cwd: distDir,
     stdio: 'pipe'
   });

@@ -1,165 +1,140 @@
-import { generateSyntheticPerson } from '../generator/personGenerator';
-import { ProfileType, SyntheticPerson, FillOptions } from '../types';
+import { SyntheticPerson } from '../types';
+import { classifyUnknownField, resolveGeminiModel } from '../services/geminiClassifier';
+import {
+  generatePersonForSettings,
+  loadCurrentPerson,
+  loadFillSettings,
+  saveCurrentPerson,
+  saveSettings,
+  toFillOptions,
+} from '../services/settings';
 
-console.log('[Nepal Test Filler] Service worker initialized.');
+const MENU_FILL = 'nepal-test-filler-quick-fill';
+const MENU_REGENERATE = 'nepal-test-filler-regenerate-fill';
+const MENU_UNDO = 'nepal-test-filler-undo-fill';
 
-let cachedPerson: SyntheticPerson | null = null;
+function isScriptableUrl(url?: string): boolean {
+  return Boolean(url && /^(https?|file):/.test(url) && !url.startsWith('https://chromewebstore.google.com'));
+}
 
-function getTabSessionPersona(tabId: number): Promise<SyntheticPerson | null> {
-  return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tabId, { action: 'GET_SESSION_PERSONA' }, (res) => {
-      if (chrome.runtime.lastError || !res || res.status !== 'ok' || !res.person) {
-        resolve(null);
-      } else {
-        resolve(res.person as SyntheticPerson);
-      }
+/**
+ * Sends a message to every frame of a tab. Tabs that were open before the extension
+ * was installed have no content script yet, so inject it once and retry.
+ */
+async function sendToTab<T = unknown>(tabId: number, message: unknown): Promise<T | undefined> {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch {
+    const files = chrome.runtime.getManifest().content_scripts?.[0]?.js;
+    if (!files?.length) return undefined;
+    try {
+      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files });
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.id !== undefined && isScriptableUrl(tab.url) ? tab : undefined;
+}
+
+async function fillActiveTab(regenerate: boolean) {
+  const tab = await getActiveTab();
+  if (!tab?.id) return;
+
+  const settings = await loadFillSettings();
+  let person: SyntheticPerson | null = null;
+
+  if (!regenerate) {
+    const session = await sendToTab<{ status: string; person?: SyntheticPerson }>(tab.id, {
+      action: 'GET_SESSION_PERSONA',
     });
+    person = session?.status === 'ok' && session.person ? session.person : await loadCurrentPerson();
+  }
+
+  if (!person) {
+    person = await generatePersonForSettings(settings);
+    await saveCurrentPerson(person);
+  }
+
+  await sendToTab(tab.id, { action: 'FILL_PAGE', person, options: toFillOptions(settings) });
+}
+
+async function undoActiveTab() {
+  const tab = await getActiveTab();
+  if (tab?.id) await sendToTab(tab.id, { action: 'UNDO_FILL' });
+}
+
+function runCommand(command: string) {
+  const task =
+    command === 'quick-fill' || command === MENU_FILL
+      ? fillActiveTab(false)
+      : command === 'regenerate-fill' || command === MENU_REGENERATE
+        ? fillActiveTab(true)
+        : command === 'undo-fill' || command === MENU_UNDO
+          ? undoActiveTab()
+          : Promise.resolve();
+  task.catch(() => {
+    // Restricted page or tab closed mid-action; nothing useful to report.
   });
 }
 
-async function executeFillOnActiveTab(regenerate = false) {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id || !tab.url || tab.url.startsWith('chrome://')) return;
+chrome.commands.onCommand.addListener(runCommand);
+chrome.contextMenus.onClicked.addListener((info) => runCommand(String(info.menuItemId)));
 
-    const data = (await chrome.storage.local.get([
-      'selectedProfile',
-      'fillScript',
-      'fillCategories',
-      'aiEnabled',
-      'lastGeneratedPerson',
-    ])) as Record<string, any>;
-
-    const profile: ProfileType = data.selectedProfile || 'general';
-    const fillScript = data.fillScript || 'en';
-    const fillCategories = data.fillCategories || {
-      personal: true,
-      contact: true,
-      address: true,
-      professional: true,
-    };
-    const enableAiClassification = Boolean(data.aiEnabled);
-
-    let personToFill: SyntheticPerson | null = null;
-    if (!regenerate) {
-      personToFill = await getTabSessionPersona(tab.id);
-    }
-
-    if (!personToFill) {
-      if (regenerate || !cachedPerson) {
-        cachedPerson = generateSyntheticPerson(profile);
-        await chrome.storage.local.set({ lastGeneratedPerson: cachedPerson });
-      }
-      personToFill = cachedPerson;
-    }
-
-    const options: FillOptions = {
-      profile,
-      fillScript,
-      fillCategories,
-      enableAiClassification,
-    };
-
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
-        action: 'FILL_PAGE',
-        person: personToFill,
-        options,
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('[Nepal Test Filler] Could not send message to tab:', chrome.runtime.lastError.message);
-        } else {
-          console.log('[Nepal Test Filler] Shortcut fill result:', response);
-        }
-      }
-    );
-  } catch (err) {
-    console.error('[Nepal Test Filler] Error in executeFillOnActiveTab:', err);
-  }
-}
-
-async function executeUndoOnActiveTab() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id || !tab.url || tab.url.startsWith('chrome://')) return;
-
-    chrome.tabs.sendMessage(
-      tab.id,
-      { action: 'UNDO_FILL' },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('[Nepal Test Filler] Could not send undo to tab:', chrome.runtime.lastError.message);
-        } else {
-          console.log('[Nepal Test Filler] Undo result:', response);
-        }
-      }
-    );
-  } catch (err) {
-    console.error('[Nepal Test Filler] Error in executeUndoOnActiveTab:', err);
-  }
-}
-
-// Commands listener (Keyboard shortcuts)
-chrome.commands?.onCommand?.addListener((command: string) => {
-  if (command === 'quick-fill') {
-    executeFillOnActiveTab(false);
-  } else if (command === 'regenerate-fill') {
-    executeFillOnActiveTab(true);
-  } else if (command === 'undo-fill') {
-    executeUndoOnActiveTab();
-  }
-});
-
-// Context Menus
-chrome.runtime.onInstalled.addListener(async (details: chrome.runtime.InstalledDetails) => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    console.log('[Nepal Test Filler] Extension installed for the first time.');
-    await chrome.storage.local.set({
+    await saveSettings({
       selectedProfile: 'general',
       fillScript: 'en',
-      fillCategories: {
-        personal: true,
-        contact: true,
-        address: true,
-        professional: true,
-      },
-      aiEnabled: false,
+      fillCategories: { personal: true, contact: true, address: true, professional: true },
+      geminiAiClassificationEnabled: false,
       enableFloatingBadge: true,
       enableSessionPersistence: true,
     });
+  } else if (details.reason === 'update') {
+    // Older builds stored the AI toggle under two keys; keep only the canonical one.
+    const legacy = (await chrome.storage.local.get(['aiEnabled', 'geminiAiClassificationEnabled'])) as Record<
+      string,
+      unknown
+    >;
+    if (legacy.geminiAiClassificationEnabled === undefined && typeof legacy.aiEnabled === 'boolean') {
+      await saveSettings({ geminiAiClassificationEnabled: legacy.aiEnabled });
+    }
+    await chrome.storage.local.remove('aiEnabled');
   }
 
-  // Create context menu items
-  if (chrome.contextMenus) {
-    chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({
-        id: 'nepal-test-filler-quick-fill',
-        title: 'Fill with Nepali Test Data (Alt+Shift+F)',
-        contexts: ['editable', 'page'],
-      });
-      chrome.contextMenus.create({
-        id: 'nepal-test-filler-regenerate-fill',
-        title: 'Regenerate & Refill (Alt+Shift+R)',
-        contexts: ['editable', 'page'],
-      });
-      chrome.contextMenus.create({
-        id: 'nepal-test-filler-undo-fill',
-        title: 'Undo / Revert Form (Alt+Shift+U)',
-        contexts: ['editable', 'page'],
-      });
-    });
-  }
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: MENU_FILL, title: 'Fill form with Nepali test data', contexts: ['editable', 'page'] });
+    chrome.contextMenus.create({ id: MENU_REGENERATE, title: 'Fill with a new person', contexts: ['editable', 'page'] });
+    chrome.contextMenus.create({ id: MENU_UNDO, title: 'Undo fill', contexts: ['editable', 'page'] });
+  });
 });
 
-chrome.contextMenus?.onClicked?.addListener((info: chrome.contextMenus.OnClickData) => {
-  if (info.menuItemId === 'nepal-test-filler-quick-fill') {
-    executeFillOnActiveTab(false);
-  } else if (info.menuItemId === 'nepal-test-filler-regenerate-fill') {
-    executeFillOnActiveTab(true);
-  } else if (info.menuItemId === 'nepal-test-filler-undo-fill') {
-    executeUndoOnActiveTab();
-  }
-});
+// AI classification runs here, not in the content script, so the API key and the
+// request never appear in the page's context or network log.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.action !== 'CLASSIFY_FIELD' || sender.id !== chrome.runtime.id) return false;
 
+  (async () => {
+    try {
+      const store = (await chrome.storage.local.get([
+        'geminiApiKey',
+        'geminiAiClassificationEnabled',
+        'geminiModel',
+      ])) as Record<string, unknown>;
+      const result = await classifyUnknownField(message.payload, {
+        apiKey: String(store.geminiApiKey || ''),
+        enabled: store.geminiAiClassificationEnabled === true,
+        model: resolveGeminiModel(store.geminiModel as string | undefined),
+      });
+      sendResponse({ status: 'ok', result });
+    } catch (err) {
+      sendResponse({ status: 'error', message: String(err) });
+    }
+  })();
+  return true;
+});

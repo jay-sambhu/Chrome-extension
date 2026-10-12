@@ -82,19 +82,23 @@ describe('Phase 1.4 — Government & Official Document Identifiers', () => {
   describe('Passport (राहदानी) Details Engine', () => {
     it('generates ordinary e-passport with PA/PC prefix and 7 digits', () => {
       for (let i = 0; i < 50; i++) {
-        const passport = generatePassportDetails('Kathmandu', '1995-04-12');
+        const passport = generatePassportDetails('Kathmandu', '1995-04-12')!;
         expect(passport.passportNumber).toMatch(/^(PA|PC)\d{7}$/);
       }
     });
 
-    it('ensures passport validity is precisely 10 years', () => {
-      for (let i = 0; i < 50; i++) {
+    it('ensures passport validity is precisely 10 years (expires the day before the 10th anniversary)', () => {
+      const now = new Date(2026, 9, 12);
+      for (let i = 0; i < 200; i++) {
         const district = 'Kaski';
-        const passport = generatePassportDetails(district, '1998-08-20');
-        const issueYear = parseInt(passport.passportIssueDate.slice(0, 4), 10);
-        const expiryYear = parseInt(passport.passportExpiryDate.slice(0, 4), 10);
+        const passport = generatePassportDetails(district, '1998-08-20', now)!;
+        const issue = new Date(`${passport.passportIssueDate}T00:00:00Z`);
+        const expectedExpiry = new Date(Date.UTC(issue.getUTCFullYear() + 10, issue.getUTCMonth(), issue.getUTCDate() - 1));
 
-        expect(expiryYear - issueYear).toBe(10);
+        expect(passport.passportExpiryDate).toBe(expectedExpiry.toISOString().slice(0, 10));
+        expect(passport.passportExpiryDate).not.toBe(passport.passportIssueDate);
+        expect(passport.passportIssueDate < '2026-10-12').toBe(true);
+        expect(passport.passportIssueDate >= '2014-08-20').toBe(true); // holder turned 16
         expect([
           'Department of Passports, Kathmandu',
           `DAO, ${district}`,
@@ -106,7 +110,7 @@ describe('Phase 1.4 — Government & Official Document Identifiers', () => {
   describe('Driving License (सवारी चालक अनुमतिपत्र) Engine', () => {
     it('generates standard DoTM format: 01-06-XXXXXXXX', () => {
       for (let i = 0; i < 50; i++) {
-        const license = generateDrivingLicenseDetails('Bagmati Province');
+        const license = generateDrivingLicenseDetails('Bagmati Province')!;
         // Bagmati is province 03
         expect(license.drivingLicenseNumber).toMatch(/^03-\d{2}-\d{8}$/);
       }
@@ -114,12 +118,56 @@ describe('Phase 1.4 — Government & Official Document Identifiers', () => {
 
     it('ensures driving license validity is precisely 5 years', () => {
       for (let i = 0; i < 50; i++) {
-        const license = generateDrivingLicenseDetails();
+        const license = generateDrivingLicenseDetails()!;
         const issueYear = parseInt(license.drivingLicenseIssueDate.slice(0, 4), 10);
         const expiryYear = parseInt(license.drivingLicenseExpiryDate.slice(0, 4), 10);
 
         expect(expiryYear - issueYear).toBe(5);
         expect(DRIVING_LICENSE_CATEGORIES).toContain(license.drivingLicenseCategory);
+      }
+    });
+  });
+
+  describe('Age-gated documents', () => {
+    const now = new Date(2026, 9, 12); // 2026-10-12 = 2083-06-26 BS
+
+    it('does not issue passports or licences to under-16s', () => {
+      expect(generatePassportDetails('Kathmandu', '2011-01-01', now)).toBeUndefined();
+      expect(generateDrivingLicenseDetails('Bagmati Province', '2011-01-01', now)).toBeUndefined();
+    });
+
+    it('limits 16-17 year olds to two-wheeler (A/K) licences issued after their 16th birthday', () => {
+      for (let i = 0; i < 200; i++) {
+        const license = generateDrivingLicenseDetails('Bagmati Province', '2009-06-15', now)!;
+        expect(['Category A (Motorcycle)', 'Category K (Scooter)']).toContain(license.drivingLicenseCategory);
+        expect(license.drivingLicenseIssueDate >= '2025-06-15').toBe(true);
+        expect(license.drivingLicenseIssueDate < '2026-10-12').toBe(true);
+      }
+    });
+
+    it('issues car (B) licences only on/after the 18th birthday', () => {
+      for (let i = 0; i < 300; i++) {
+        const license = generateDrivingLicenseDetails('Bagmati Province', '2007-03-01', now)!;
+        if (license.drivingLicenseCategory.includes('B')) {
+          expect(license.drivingLicenseIssueDate >= '2025-03-01').toBe(true);
+        } else {
+          expect(license.drivingLicenseIssueDate >= '2023-03-01').toBe(true);
+        }
+      }
+    });
+
+    it('generates licence serials that do not all start with 00', () => {
+      const serials = Array.from({ length: 50 }, () => generateDrivingLicenseDetails('Koshi Province')!.drivingLicenseNumber.split('-')[2]);
+      expect(serials.every((s) => s.startsWith('00'))).toBe(false);
+      serials.forEach((s) => expect(s).toMatch(/^\d{8}$/));
+    });
+
+    it('issues citizenship on/after the 16th BS birthday and never in the future', () => {
+      for (let i = 0; i < 200; i++) {
+        const doc = generateCitizenshipDetails('Kathmandu', '2060-12-30', now);
+        expect(doc.citizenshipIssueDateBS >= '2076-12-30').toBe(true);
+        expect(doc.citizenshipIssueDateBS <= '2083-06-26').toBe(true);
+        expect(doc.citizenshipNumber.split('-')[2]).toBe(doc.citizenshipIssueDateBS.slice(2, 4));
       }
     });
   });

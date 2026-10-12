@@ -242,8 +242,10 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
       let requestedUrl = '';
       let requestBody: any = null;
 
+      let requestHeaders: Record<string, string> = {};
       const mockFetch: typeof fetch = async (url, init) => {
         requestedUrl = String(url);
+        requestHeaders = (init?.headers || {}) as Record<string, string>;
         requestBody = JSON.parse(String(init?.body || '{}'));
         return {
           ok: true,
@@ -262,7 +264,9 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
 
       const result = await testGeminiConnection('valid-test-key-123', 'gemini-3.5-flash-lite', mockFetch);
       expect(requestedUrl).toContain('models/gemini-3.5-flash-lite:generateContent');
-      expect(requestedUrl).toContain('key=valid-test-key-123');
+      // The key travels in a header, never in the URL (URLs end up in logs and history)
+      expect(requestedUrl).not.toContain('valid-test-key-123');
+      expect(requestHeaders['x-goog-api-key']).toBe('valid-test-key-123');
       expect(requestBody.contents[0].parts[0].text).toBe('ping');
       expect(result.success).toBe(true);
       expect(result.status).toBe('valid');
@@ -512,21 +516,21 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
   describe('Phase 3.3 — Dynamic Model Selector & Fallback Engine', () => {
     it('defines supported model options with required models and fallback metadata', () => {
       const modelIds = SUPPORTED_GEMINI_MODELS.map((m) => m.id);
-      expect(modelIds).toContain('gemini-2.5-flash');
-      expect(modelIds).toContain('gemini-2.5-pro');
-      expect(modelIds).toContain('gemini-1.5-flash');
-      expect(modelIds).toContain('gemini-3.5-flash-lite');
+      expect(modelIds).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+      // Retired models must not be offered
+      expect(modelIds).not.toContain('gemini-1.5-flash');
 
-      expect(DEFAULT_GEMINI_MODEL).toBe('gemini-2.5-flash');
+      expect(DEFAULT_GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
       expect(FALLBACK_GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
     });
 
     it('resolves valid models accurately with trimming and case insensitivity', () => {
-      expect(resolveGeminiModel('gemini-2.5-flash')).toBe('gemini-2.5-flash');
-      expect(resolveGeminiModel('gemini-2.5-pro')).toBe('gemini-2.5-pro');
-      expect(resolveGeminiModel('gemini-1.5-flash')).toBe('gemini-1.5-flash');
+      expect(resolveGeminiModel('gemini-3.8-flash')).toBe('gemini-3.8-flash');
       expect(resolveGeminiModel('gemini-3.5-flash-lite')).toBe('gemini-3.5-flash-lite');
-      expect(resolveGeminiModel('  GEMINI-2.5-FLASH  ')).toBe('gemini-2.5-flash');
+      expect(resolveGeminiModel('  GEMINI-3.8-FLASH  ')).toBe('gemini-3.8-flash');
+      // Models stored by older versions resolve to the default
+      expect(resolveGeminiModel('gemini-1.5-flash')).toBe('gemini-3.5-flash-lite');
+      expect(resolveGeminiModel('gemini-2.5-pro')).toBe('gemini-3.5-flash-lite');
     });
 
     it('falls back to gemini-3.5-flash-lite on unknown, empty, or undefined models', () => {
@@ -548,8 +552,8 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
         const urlStr = String(url);
         requestedUrls.push(urlStr);
 
-        // First attempt with gemini-2.5-pro fails with 404
-        if (urlStr.includes('gemini-2.5-pro')) {
+        // First attempt with gemini-3.8-flash fails with 404
+        if (urlStr.includes('gemini-3.8-flash')) {
           return {
             ok: false,
             status: 404,
@@ -588,18 +592,18 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
       const config: GeminiConfig = {
         apiKey: 'test-key',
         enabled: true,
-        model: 'gemini-2.5-pro',
+        model: 'gemini-3.8-flash',
       };
 
       const result = await classifyUnknownField(payload, config, mockFetch);
       expect(requestedUrls.length).toBe(2);
-      expect(requestedUrls[0]).toContain('gemini-2.5-pro');
+      expect(requestedUrls[0]).toContain('gemini-3.8-flash');
       expect(requestedUrls[1]).toContain('gemini-3.5-flash-lite');
       expect(result.fieldType).toBe('referenceNumber');
       expect(result.confidence).toBe(0.9);
     });
 
-    it('testGeminiConnection tests with specified model and handles 404 fallback notification', async () => {
+    it('testGeminiConnection reports a missing model clearly', async () => {
       let testedUrl = '';
       const mockFetch: typeof fetch = async (url) => {
         testedUrl = String(url);
@@ -609,18 +613,18 @@ describe('Gemini Unknown Field Classifier & Caching Engine', () => {
           json: async () => ({
             error: {
               code: 404,
-              message: 'Model gemini-2.5-pro not found in region',
+              message: 'Model gemini-3.8-flash not found in region',
               status: 'NOT_FOUND',
             },
           }),
         } as any;
       };
 
-      const result = await testGeminiConnection('test-key-xyz', 'gemini-2.5-pro', mockFetch);
-      expect(testedUrl).toContain('models/gemini-2.5-pro:generateContent');
+      const result = await testGeminiConnection('test-key-xyz', 'gemini-3.8-flash', mockFetch);
+      expect(testedUrl).toContain('models/gemini-3.8-flash:generateContent');
       expect(result.success).toBe(false);
       expect(result.status).toBe('model_not_found');
-      expect(result.message).toContain('gemini-3.5-flash-lite');
+      expect(result.message).toContain('gemini-3.8-flash');
     });
   });
 });

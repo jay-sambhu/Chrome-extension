@@ -5,9 +5,11 @@
   },
   "allMobilePrefixes": ["984", "985", "986", "980", "981", "982", "974", "975", "976", "970"],
   "testEmailDomains": [
+    "example.com",
+    "example.org",
+    "example.net",
     "example.test",
-    "testmail.com.np",
-    "synthetic.np",
-    "devtest.np"
+    "mail.example.test",
+    "inbox.example"
   ]
 }

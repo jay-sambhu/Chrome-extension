@@ -412,6 +412,7 @@ export type ExtensionMessage =
   | { action: 'SET_SESSION_PERSONA'; person: SyntheticPerson; options?: FillOptions }
   | { action: 'CLEAR_SESSION_PERSONA' }
   | { action: 'CLASSIFY_FIELD'; payload: FieldClassificationPayload }
+  | { action: 'FRAME_FILLED'; count: number }
   | { action: 'PING' };
 
 

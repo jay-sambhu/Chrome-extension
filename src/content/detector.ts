@@ -1,5 +1,5 @@
 import { DetectedField, SupportedFieldType } from '../types';
-import { toEnglishNumerals } from '../generator/devanagariEngine';
+import { toEnglishNumerals } from '../generator/numerals';
 
 /**
  * Extracts the most relevant human-readable label from the DOM for an input element.
@@ -519,8 +519,16 @@ const AUTOCOMPLETE_MAP: Record<string, SupportedFieldType> = {
   url: 'url',
 };
 
+const EXPLICIT_NEPALI =
+  /(?:नेपालीमा|नेपाली\s*(?:युनिकोड|लिपि|भाषा)|युनिकोडमा|देवनागरी)|\b(?:in\s*nepali|nepali\s*ma|nepalima|in\s*devanagari|devanagari|nepali\s*unicode)\b/i;
+const EXPLICIT_ENGLISH = /\(\s*english\s*\)|\b(?:in\s*english|english\s*ma|block\s*letters?|capital\s*letters?)\b|अंग्रेजीमा|अङ्ग्रेजीमा|अंग्रेजी|अङ्ग्रेजी/i;
+
 /**
- * Detects whether an input field specifically targets Nepali Devanagari script.
+ * Detects whether an input field asks for a specific script.
+ * - Explicit markers win: "(नेपालीमा)", "in Nepali" → np; "(English)", "in block letters" → en.
+ * - A label written only in Devanagari → np.
+ * - Bilingual labels such as "District (जिल्ला)" are the norm on Nepali forms and accept
+ *   either script, so they return undefined and the user's chosen script applies.
  */
 export function detectTargetScript(signals: {
   label: string;
@@ -529,17 +537,17 @@ export function detectTargetScript(signals: {
   name: string;
   id: string;
 }): 'en' | 'np' | undefined {
-  const combined = `${signals.label} ${signals.placeholder} ${signals.title}`;
-  if (/[\u0900-\u097F]/.test(combined)) {
-    return 'np';
-  }
-  if (
-    /(?:\b(in\s*nepali|nepali\s*ma|nepalima|in\s*devanagari|devanagari)\b|_np\b|_nepali\b|nepali_)/i.test(
-      `${combined} ${signals.name} ${signals.id}`
-    )
-  ) {
-    return 'np';
-  }
+  const visible = `${signals.label} ${signals.placeholder} ${signals.title}`;
+  const attrs = `${signals.name} ${signals.id}`;
+
+  if (EXPLICIT_NEPALI.test(visible)) return 'np';
+  if (EXPLICIT_ENGLISH.test(visible)) return 'en';
+  if (/(?:_np|_nepali|nepali_|_devanagari)\b|\bnepali_/i.test(attrs)) return 'np';
+
+  // Judge by the label when there is one, otherwise by placeholder/title.
+  const primary = signals.label.trim() || `${signals.placeholder} ${signals.title}`.trim();
+  if (/[\u0900-\u097F]/.test(primary) && !/[A-Za-z]{2,}/.test(primary)) return 'np';
+
   return undefined;
 }
 
@@ -1046,9 +1054,45 @@ export function detectFieldType(element: HTMLElement): DetectedField {
   return { element, type: 'unknown', confidence: 0.0, label, name, id, script };
 }
 
+const FORM_CONTROL_SELECTOR = [
+  'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"])' +
+    ':not([type="image"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="search"])' +
+    ':not([disabled]):not([readonly])',
+  'textarea:not([disabled]):not([readonly])',
+  'select:not([disabled])',
+  '[role="checkbox"]:not([aria-disabled="true"]):not(input)',
+  '[role="radio"]:not([aria-disabled="true"]):not(input)',
+  '[role="combobox"]:not([aria-disabled="true"]):not(input):not(select)',
+].join(', ');
+
 /**
- * Recursively traverses a DOM tree, penetrating open Shadow DOM roots
- * and accessible embedded <iframe> elements to collect all interactive form controls.
+ * True for text-like fields the user cannot see (honeypots, collapsed sections).
+ * Checkboxes, radios and selects are deliberately exempt: UI kits often hide the
+ * native control and render a styled replacement that still relies on it.
+ */
+function isHiddenTextField(el: HTMLElement): boolean {
+  const tag = el.tagName.toLowerCase();
+  const type = (el.getAttribute('type') || '').toLowerCase();
+  if (tag === 'select' || type === 'checkbox' || type === 'radio' || el.hasAttribute('role')) return false;
+  if (el.hidden || el.closest('[hidden]')) return true;
+
+  const view = el.ownerDocument?.defaultView;
+  if (view) {
+    const style = view.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return true;
+  }
+
+  // Only trust layout boxes when a layout engine is present (real browsers, not jsdom).
+  const docEl = el.ownerDocument?.documentElement;
+  if (docEl && docEl.getClientRects().length > 0 && el.getClientRects().length === 0) return true;
+
+  return false;
+}
+
+/**
+ * Recursively traverses a DOM tree, penetrating open Shadow DOM roots to collect
+ * all interactive form controls. Iframes are not traversed: the content script
+ * runs in every frame (all_frames) and fills its own document.
  */
 export function queryDeepFormElements(
   root: Document | HTMLElement | ShadowRoot = document,
@@ -1057,59 +1101,35 @@ export function queryDeepFormElements(
   if (!root || visited.has(root)) return [];
   visited.add(root);
 
-  const selector =
-    'input:not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([disabled]), ' +
-    'textarea:not([disabled]), ' +
-    'select:not([disabled]), ' +
-    '[role="checkbox"]:not([aria-disabled="true"]):not(input), ' +
-    '[role="radio"]:not([aria-disabled="true"]):not(input), ' +
-    '[role="combobox"]:not([aria-disabled="true"]):not(input):not(select)';
-
   const collected: HTMLElement[] = [];
 
-  // 1. Direct matches in current root
   try {
-    const directMatches = Array.from(root.querySelectorAll<HTMLElement>(selector));
-    collected.push(...directMatches);
+    collected.push(...Array.from(root.querySelectorAll<HTMLElement>(FORM_CONTROL_SELECTOR)));
   } catch {
     // ignore query errors
   }
 
-  // 2. Search for custom web components with open Shadow DOM and embedded iframes
+  // Custom web components with open Shadow DOM
   try {
-    const allElements = Array.from(root.querySelectorAll<HTMLElement>('*'));
-    for (const el of allElements) {
-      // Check for open shadow root on custom element
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
       if (el.shadowRoot && !visited.has(el.shadowRoot)) {
-        const shadowMatches = queryDeepFormElements(el.shadowRoot, visited);
-        collected.push(...shadowMatches);
-      }
-
-      // Check for embedded accessible iframes (e.g. payment gateway modals like eSewa / Khalti)
-      if (el.tagName.toLowerCase() === 'iframe') {
-        try {
-          const iframe = el as HTMLIFrameElement;
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-          if (iframeDoc && !visited.has(iframeDoc)) {
-            const iframeMatches = queryDeepFormElements(iframeDoc, visited);
-            collected.push(...iframeMatches);
-          }
-        } catch {
-          // Cross-origin iframe security block, handled via all_frames content script or postMessage
-        }
+        collected.push(...queryDeepFormElements(el.shadowRoot, visited));
       }
     }
   } catch {
     // ignore
   }
 
-  // Deduplicate
-  return Array.from(new Set(collected));
+  return Array.from(new Set(collected)).filter((el) => !isHiddenTextField(el) && !isExtensionUi(el));
+}
+
+function isExtensionUi(el: HTMLElement): boolean {
+  return Boolean(el.closest('[data-nepal-filler-ui]'));
 }
 
 /**
  * Scans the DOM tree for all active, interactive form fields,
- * including those nested in open Shadow DOM roots and embedded iframes.
+ * including those nested in open Shadow DOM roots.
  */
 export function scanFormFields(root: Document | HTMLElement | ShadowRoot = document): DetectedField[] {
   const elements = queryDeepFormElements(root);

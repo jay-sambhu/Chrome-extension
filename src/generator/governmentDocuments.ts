@@ -1,4 +1,19 @@
-import { splitBsDate } from './nepaliCalendar';
+import {
+  adPartsToBs,
+  bsPartsToAd,
+  convertAdToBs,
+  getBsMonthDays,
+} from './nepaliCalendar';
+import {
+  addDays,
+  addYears,
+  formatAdDate,
+  maxDate,
+  minDate,
+  parseAdDate,
+  randomDateBetween,
+  todayUtc,
+} from './dateUtils';
 
 function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -141,34 +156,55 @@ export interface CitizenshipDetails {
   citizenshipIssuedBy: string;
 }
 
+/** Minimum age (completed years) for Nepali citizenship, passport and two-wheeler licences. */
+export const MIN_CITIZENSHIP_AGE = 16;
+export const MIN_PASSPORT_AGE = 16;
+export const MIN_TWO_WHEELER_LICENSE_AGE = 16;
+export const MIN_FOUR_WHEELER_LICENSE_AGE = 18;
+
+function parseBsParts(bsDate: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(bsDate.trim());
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
 /**
- * Generates verified Nepali citizenship details mathematically verified after the birth year.
- * In Nepal, eligibility for citizenship begins at age 16 BS.
+ * Generates Nepali citizenship details. The issue date is always on or after the holder's
+ * 16th birthday (in BS) and never later than today. If the holder is not yet 16 the issue
+ * date is clamped to today; callers should not request citizenship for minors.
  */
 export function generateCitizenshipDetails(
   permanentDistrict: string,
-  dobBS?: string
+  dobBS?: string,
+  now: Date = new Date()
 ): CitizenshipDetails {
-  const currentBSYear = 2081;
-  let birthYearBS = 2055;
+  const today = todayUtc(now);
 
-  if (dobBS) {
-    const parsed = parseInt(splitBsDate(dobBS).year, 10);
-    if (!isNaN(parsed) && parsed > 2000 && parsed < currentBSYear) {
-      birthYearBS = parsed;
-    }
+  let eligibleFrom: Date | null = null;
+  const bs = dobBS ? parseBsParts(dobBS) : null;
+  if (bs) {
+    const eligibleYear = bs.year + MIN_CITIZENSHIP_AGE;
+    const eligibleDay = Math.min(bs.day, getBsMonthDays(eligibleYear, bs.month) || bs.day);
+    const ad = bsPartsToAd({ year: eligibleYear, month: bs.month, day: eligibleDay });
+    if (ad) eligibleFrom = new Date(Date.UTC(ad.year, ad.month - 1, ad.day));
+  }
+  if (!eligibleFrom) {
+    // Unknown DOB: assume an adult who became eligible 2-12 years ago
+    eligibleFrom = addYears(today, -randInt(2, 12));
   }
 
-  // Issue year is at least 16 years after birth year
-  const minIssueYear = birthYearBS + 16;
-  const maxIssueYear = Math.min(currentBSYear, birthYearBS + 24);
-  const issueYear = minIssueYear <= maxIssueYear
-    ? randInt(minIssueYear, maxIssueYear)
-    : minIssueYear;
-
-  const month = randInt(1, 12).toString().padStart(2, '0');
-  const day = randInt(1, 28).toString().padStart(2, '0');
-  const issueDateBS = `${issueYear}-${month}-${day}`;
+  const earliest = minDate(eligibleFrom, today);
+  const latest = minDate(today, addYears(earliest, 8));
+  const issueAd = randomDateBetween(earliest, latest) || earliest;
+  const issueBs = adPartsToBs({
+    year: issueAd.getUTCFullYear(),
+    month: issueAd.getUTCMonth() + 1,
+    day: issueAd.getUTCDate(),
+  });
+  const issueDateBS = issueBs
+    ? `${issueBs.year}-${issueBs.month.toString().padStart(2, '0')}-${issueBs.day.toString().padStart(2, '0')}`
+    : convertAdToBs(formatAdDate(today));
+  const issueYear = issueBs ? issueBs.year : parseInt(issueDateBS.slice(0, 4), 10);
 
   const distCode = getDistrictCode(permanentDistrict);
   const typeCode = '01'; // Descendant / वंशज
@@ -201,40 +237,38 @@ export interface PassportDetails {
   passportIssuedBy: string;
 }
 
+function resolveBirthDate(dobAD: string | undefined, today: Date): Date {
+  const parsed = dobAD ? parseAdDate(dobAD) : null;
+  if (parsed && parsed.getTime() <= today.getTime()) return parsed;
+  // Unknown DOB: assume an adult aged 25-45
+  return addDays(addYears(today, -randInt(25, 45)), -randInt(0, 364));
+}
+
 /**
- * Generates ordinary Nepal MRP/e-Passport details.
- * Passport validity is 10 years for adult citizens.
+ * Generates ordinary Nepal MRP/e-Passport details (AD dates).
+ * Issued on/after the holder's 16th birthday, within the last 9 years, never in the future.
+ * Validity is 10 years (expires the day before the 10th anniversary of issue).
+ * Returns undefined when the holder is too young to have been issued a passport.
  */
 export function generatePassportDetails(
   permanentDistrict: string,
-  dobAD?: string
-): PassportDetails {
-  const currentYear = new Date().getFullYear();
-  let birthYear = 1998;
+  dobAD?: string,
+  now: Date = new Date()
+): PassportDetails | undefined {
+  const today = todayUtc(now);
+  const birth = resolveBirthDate(dobAD, today);
 
-  if (dobAD) {
-    const parts = dobAD.split('-');
-    const parsed = parseInt(parts[0], 10);
-    if (!isNaN(parsed) && parsed > 1940 && parsed < currentYear) {
-      birthYear = parsed;
-    }
-  }
+  const earliest = maxDate(addYears(birth, MIN_PASSPORT_AGE), addYears(today, -9));
+  const latest = addDays(today, -1);
+  const issue = randomDateBetween(earliest, latest);
+  if (!issue) return undefined;
 
-  // Passports issued within the last 1 to 8 years, but after age 16
-  const minIssueYear = Math.max(birthYear + 16, currentYear - 8);
-  const maxIssueYear = currentYear - 1;
-  const issueYear = minIssueYear <= maxIssueYear
-    ? randInt(minIssueYear, maxIssueYear)
-    : currentYear - 2;
-
-  const month = randInt(1, 12).toString().padStart(2, '0');
-  const day = randInt(1, 28).toString().padStart(2, '0');
-  const issueDate = `${issueYear}-${month}-${day}`;
-
-  // 10-year validity
-  const expiryYear = issueYear + 10;
-  const expiryDay = (Math.max(1, parseInt(day, 10) - 1)).toString().padStart(2, '0');
-  const expiryDate = `${expiryYear}-${month}-${expiryDay}`;
+  // Valid until the day before the 10th anniversary. Compute the anniversary first, then step
+  // back, so an issue on 1 March expires on 29 February in leap years.
+  const expiry = addDays(
+    new Date(Date.UTC(issue.getUTCFullYear() + 10, issue.getUTCMonth(), issue.getUTCDate())),
+    -1
+  );
 
   // Series PA or PC + 7 digits (ordinary passport in Nepal)
   const series = sample(['PA', 'PC']);
@@ -248,8 +282,8 @@ export function generatePassportDetails(
 
   return {
     passportNumber,
-    passportIssueDate: issueDate,
-    passportExpiryDate: expiryDate,
+    passportIssueDate: formatAdDate(issue),
+    passportExpiryDate: formatAdDate(expiry),
     passportIssuedBy: issuedBy,
   };
 }
@@ -268,31 +302,47 @@ export const DRIVING_LICENSE_CATEGORIES = [
   'Category K (Scooter)',
 ];
 
+/** Two-wheeler categories (A/K) are available from 16; anything including B needs 18. */
+export function getMinimumLicenseAge(category: string): number {
+  return /\bB\b/.test(category.replace(/^Category\s+/, ''))
+    ? MIN_FOUR_WHEELER_LICENSE_AGE
+    : MIN_TWO_WHEELER_LICENSE_AGE;
+}
+
 /**
- * Generates DoTM Nepal Smart Driving License details (format: 01-06-XXXXXXXX).
- * Valid for 5 years in Nepal.
+ * Generates DoTM Nepal Smart Driving License details (format: 01-06-XXXXXXXX, AD dates).
+ * Issued within the last 4 years and on/after the holder became eligible for the category.
+ * Valid for 5 years. Returns undefined when the holder is too young for any category.
  */
 export function generateDrivingLicenseDetails(
-  provinceName?: string
-): DrivingLicenseDetails {
+  provinceName?: string,
+  dobAD?: string,
+  now: Date = new Date()
+): DrivingLicenseDetails | undefined {
+  const today = todayUtc(now);
+  const birth = resolveBirthDate(dobAD, today);
+  const latest = addDays(today, -1);
+
+  const eligibleCategories = DRIVING_LICENSE_CATEGORIES.filter(
+    (cat) => addYears(birth, getMinimumLicenseAge(cat)).getTime() <= latest.getTime()
+  );
+  if (eligibleCategories.length === 0) return undefined;
+
+  const drivingLicenseCategory = sample(eligibleCategories);
+  const eligibleFrom = addYears(birth, getMinimumLicenseAge(drivingLicenseCategory));
+  const earliest = maxDate(eligibleFrom, addYears(today, -4));
+  const issue = randomDateBetween(earliest, latest);
+  if (!issue) return undefined;
+
   const provCode = (provinceName && PROVINCE_CODES[provinceName]) || '03';
   const officeCode = randInt(1, 8).toString().padStart(2, '0');
-  const serial = randInt(100000, 999999).toString().padStart(8, '0');
+  const serial = randInt(1, 99999999).toString().padStart(8, '0');
   const drivingLicenseNumber = `${provCode}-${officeCode}-${serial}`;
-
-  const drivingLicenseCategory = sample(DRIVING_LICENSE_CATEGORIES);
-
-  const currentYear = new Date().getFullYear();
-  const issueYear = currentYear - randInt(1, 4);
-  const month = randInt(1, 12).toString().padStart(2, '0');
-  const day = randInt(1, 28).toString().padStart(2, '0');
-  const issueDate = `${issueYear}-${month}-${day}`;
-  const expiryDate = `${issueYear + 5}-${month}-${day}`;
 
   return {
     drivingLicenseNumber,
     drivingLicenseCategory,
-    drivingLicenseIssueDate: issueDate,
-    drivingLicenseExpiryDate: expiryDate,
+    drivingLicenseIssueDate: formatAdDate(issue),
+    drivingLicenseExpiryDate: formatAdDate(addYears(issue, 5)),
   };
 }

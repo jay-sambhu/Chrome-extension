@@ -96,7 +96,8 @@ describe('Phase 1.6 — Blood Group Field Support', () => {
 
       const detected = detectFieldType(input);
       expect(detected.type).toBe('bloodGroup');
-      expect(detected.script).toBe('np');
+      // Bilingual label: either script is acceptable, so the user's preference decides
+      expect(detected.script).toBeUndefined();
     });
 
     it('detects select element by inspecting blood group options', () => {

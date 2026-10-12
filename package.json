@@ -1,9 +1,9 @@
 {
   "name": "nepal-test-filler",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Chrome extension to automatically fill web forms with realistic synthetic Nepal-focused test data",
+  "description": "Chrome extension that fills web forms with realistic synthetic Nepali test data",
   "scripts": {
     "start": "vite",
     "dev": "vite",
@@ -26,7 +26,6 @@
     "vitest": "^5.0.3"
   },
   "dependencies": {
-    "@google/genai": "^2.28.0",
     "lucide-react": "^1.52.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

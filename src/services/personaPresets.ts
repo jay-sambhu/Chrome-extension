@@ -6,12 +6,9 @@ import {
 } from '../types';
 
 export type { PersonaPreset };
-import {
-  generateSyntheticPerson,
-  generateNepalAddress,
-  generateNepaliTelephone,
-} from '../generator/personGenerator';
+import { generateSyntheticPerson } from '../generator/personGenerator';
 import { generateDevanagariDetails } from '../generator/devanagariEngine';
+import { findCommercialBank, generateBankAccountNumber } from '../generator/bankingDetails';
 
 export const BUILTIN_PERSONA_PRESETS: PersonaPreset[] = [
   {
@@ -24,7 +21,7 @@ export const BUILTIN_PERSONA_PRESETS: PersonaPreset[] = [
     designation: 'QA Super Administrator',
     department: 'Quality Assurance & Security',
     companyName: 'Nepal Enterprise QA Cloud',
-    emailDomain: 'superadmin.qa',
+    emailDomain: 'superadmin.example.test',
     bloodGroup: 'O+',
     bankName: 'Nabil Bank',
     province: 'Bagmati Province',
@@ -74,6 +71,17 @@ export const BUILTIN_PERSONA_PRESETS: PersonaPreset[] = [
 let memoryPresets: PersonaPreset[] | null = null;
 
 /**
+ * Older builds shipped the QA SuperAdmin preset with a non-reserved email domain
+ * ('superadmin.qa'); move stored copies to the reserved test domain.
+ */
+function migrateLegacyPreset(preset: PersonaPreset): PersonaPreset {
+  if (preset.isBuiltin && preset.id === 'qa-superadmin' && preset.emailDomain === 'superadmin.qa') {
+    return { ...preset, emailDomain: 'superadmin.example.test' };
+  }
+  return preset;
+}
+
+/**
  * Retrieves all available persona presets, merging built-in presets if absent.
  */
 export async function getPersonaPresets(): Promise<PersonaPreset[]> {
@@ -85,7 +93,7 @@ export async function getPersonaPresets(): Promise<PersonaPreset[]> {
         // Ensure built-in presets exist if not intentionally deleted
         const existingIds = new Set(stored.map((p) => p.id));
         const missingBuiltins = BUILTIN_PERSONA_PRESETS.filter((b) => !existingIds.has(b.id));
-        const merged = [...stored, ...missingBuiltins];
+        const merged = [...stored.map(migrateLegacyPreset), ...missingBuiltins];
         memoryPresets = merged;
         return merged;
       }
@@ -197,30 +205,14 @@ export function generatePersonFromPreset(preset: PersonaPreset): SyntheticPerson
       ? preset.gender
       : undefined;
 
-  const person = generateSyntheticPerson(preset.baseProfile, forcedGender);
-
-  // Geographic constraints
-  if (preset.province || preset.district) {
-    const customAddress = generateNepalAddress(
-      preset.province,
-      preset.baseProfile === 'farmer',
-      preset.district
-    );
-
-    if (preset.municipality && preset.municipality.trim()) {
-      customAddress.municipality = preset.municipality.trim();
-      const cleanMuni = customAddress.municipality
-        .replace(' Metropolitan City', '')
-        .replace(' Sub-Metropolitan City', '')
-        .replace(' Rural Municipality', '')
-        .replace(' Municipality', '');
-      customAddress.fullAddress = `${customAddress.tole}, Ward-${customAddress.ward}, ${cleanMuni}, ${customAddress.district}, ${customAddress.province}`;
-    }
-
-    person.address = customAddress;
-    person.telephone = generateNepaliTelephone(customAddress.district);
-    person.citizenshipIssueDistrict = customAddress.district;
-  }
+  // Geographic constraints are applied at generation time so that every location-derived
+  // field (permanent address, citizenship district & number, passport office, bank branch,
+  // landline, cooperative, Devanagari) is consistent with the preset.
+  const person = generateSyntheticPerson(preset.baseProfile, forcedGender, {
+    province: preset.province?.trim() || undefined,
+    district: preset.district?.trim() || undefined,
+    municipality: preset.municipality?.trim() || undefined,
+  });
 
   // Institutional and Professional Overrides
   if (preset.companyName) person.companyName = preset.companyName;
@@ -242,10 +234,33 @@ export function generatePersonFromPreset(preset: PersonaPreset): SyntheticPerson
   if (preset.cropType) person.cropType = preset.cropType;
   if (preset.cooperative) person.cooperative = preset.cooperative;
 
+  // Keep the employer name in sync with archetype-specific overrides
+  if (!preset.companyName) {
+    if (preset.school && (person.profileType === 'student' || person.profileType === 'teacher')) {
+      person.companyName = preset.school;
+    } else if (preset.businessName && person.profileType === 'business') {
+      person.companyName = preset.businessName;
+    } else if (preset.cooperative && person.profileType === 'farmer') {
+      person.companyName = preset.cooperative;
+    }
+  }
+  if (preset.companyName && person.workEmail && !preset.emailDomain) {
+    const companySlug = preset.companyName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20) || 'company';
+    person.workEmail = `${person.workEmail.split('@')[0]}@${companySlug}.example.test`;
+  }
+
   if (preset.bloodGroup) person.bloodGroup = preset.bloodGroup;
-  if (preset.bankName) {
-    person.bankName = preset.bankName;
-    if (person.bankAccountName) person.bankAccountName = person.fullName;
+  if (preset.bankName && preset.bankName.trim()) {
+    const bank = findCommercialBank(preset.bankName);
+    if (bank) {
+      // Canonical NRB name + account number in that bank's format
+      person.bankName = bank.nameEn;
+      person.bankAccountNumber = generateBankAccountNumber(bank.accountLength);
+    } else {
+      // Respect a custom bank typed by the user
+      person.bankName = preset.bankName.trim();
+    }
+    person.bankAccountName = person.fullName;
   }
 
   if (preset.panNumber) person.panNumber = preset.panNumber;

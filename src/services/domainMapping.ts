@@ -188,6 +188,8 @@ export function matchDomainRule(
   const elemId = (element.getAttribute('id') || '').toLowerCase();
 
   for (const rule of rules) {
+    // Rules can come from user-edited backup files; skip malformed entries instead of throwing.
+    if (!rule || typeof rule.selectorOrName !== 'string' || !rule.selectorOrName) continue;
     const pattern = rule.selectorOrName.toLowerCase();
     const matchType = rule.matchType || 'name_or_id';
 

@@ -25,7 +25,7 @@ describe('Phase 7 — Advanced Specialized Profiles & Utilities', () => {
       const emp = generateSyntheticPerson('employee');
       expect(emp.profileType).toBe('employee');
       expect(emp.employeeId).toMatch(/^EMP-\d{5}$/);
-      expect(emp.workEmail).toMatch(/@.+\.com\.np$/);
+      expect(emp.workEmail).toMatch(/@.+\.example\.test$/);
       expect(emp.designation).toBeTruthy();
       expect(emp.salary).toMatch(/^\d{2,3},000 NPR$/);
       expect(emp.panNumber).toMatch(/^\d{9}$/);

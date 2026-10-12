@@ -3,10 +3,20 @@ import {
   Province,
   District,
   Municipality,
+  inferMunicipalityType,
+  stripMunicipalitySuffix,
 } from './nepalDataEngine';
 import { Gender, NepalAddress, ProfileType, SyntheticPerson } from '../types';
-import { generateDevanagariDetails } from './devanagariEngine';
+import { generateDevanagariDetails, transliterateName } from './devanagariEngine';
 import { convertAdToBs } from './nepaliCalendar';
+import {
+  addDays,
+  addYears,
+  completedYears,
+  formatAdDate,
+  randomDateBetween,
+  todayUtc,
+} from './dateUtils';
 import {
   generateCitizenshipDetails,
   generateNationalId,
@@ -24,16 +34,33 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function buildFullAddress(tole: string, ward: number, municipality: string, district: string, province: string): string {
+  return `${tole}, Ward-${ward}, ${stripMunicipalitySuffix(municipality)}, ${district}, ${province}`;
+}
+
+/**
+ * Generates a permanent address. Optional constraints are honoured hierarchically:
+ * a municipality pins its district and province, a district pins its province.
+ * A municipality name that is not in the dataset (user supplied) is kept verbatim.
+ */
 export function generateNepalAddress(
   targetProvince?: string,
   preferRural = false,
-  targetDistrict?: string
+  targetDistrict?: string,
+  targetMunicipality?: string
 ): NepalAddress {
-  let matchedDistrict: District | undefined;
-  if (targetDistrict) {
-    matchedDistrict = NepalDataEngine.districts.find(
-      (d) => d.name.toLowerCase() === targetDistrict.toLowerCase()
-    );
+  let matchedDistrict: District | undefined = targetDistrict ? NepalDataEngine.findDistrict(targetDistrict) : undefined;
+
+  const requestedMunicipality = targetMunicipality?.trim();
+  let municipality: Municipality | undefined;
+  if (requestedMunicipality) {
+    municipality = NepalDataEngine.findMunicipality(requestedMunicipality, matchedDistrict?.name);
+    if (!municipality && !matchedDistrict) {
+      municipality = NepalDataEngine.findMunicipality(requestedMunicipality);
+    }
+    if (municipality && !matchedDistrict) {
+      matchedDistrict = NepalDataEngine.findDistrict(municipality.district);
+    }
   }
 
   const province: Province = matchedDistrict
@@ -43,20 +70,25 @@ export function generateNepalAddress(
     : NepalDataEngine.getRandomProvince();
 
   const district: District = matchedDistrict || NepalDataEngine.getRandomDistrict(province.name);
-  const municipality: Municipality = NepalDataEngine.getRandomMunicipality(
-    district.name,
-    preferRural ? 'Rural Municipality' : undefined
-  );
+
+  if (!municipality && requestedMunicipality) {
+    // Respect a custom (unknown) municipality typed by the user
+    municipality = {
+      district: district.name,
+      name: requestedMunicipality,
+      type: inferMunicipalityType(requestedMunicipality),
+      maxWards: 9,
+    };
+  }
+  if (!municipality) {
+    municipality = NepalDataEngine.getRandomMunicipality(
+      district.name,
+      preferRural ? 'Rural Municipality' : undefined
+    );
+  }
+
   const ward = NepalDataEngine.getRandomWard(municipality);
   const tole = NepalDataEngine.getRandomTole();
-
-  const cleanMunicipality = municipality.name
-    .replace(' Metropolitan City', '')
-    .replace(' Sub-Metropolitan City', '')
-    .replace(' Rural Municipality', '')
-    .replace(' Municipality', '');
-
-  const fullAddress = `${tole}, Ward-${ward}, ${cleanMunicipality}, ${district.name}, ${province.name}`;
 
   return {
     province: province.name,
@@ -65,7 +97,7 @@ export function generateNepalAddress(
     municipalityType: municipality.type,
     ward,
     tole,
-    fullAddress,
+    fullAddress: buildFullAddress(tole, ward, municipality.name, district.name, province.name),
   };
 }
 
@@ -99,14 +131,7 @@ export function generateDistinctTemporaryAddress(permanentAddress: NepalAddress)
 
   const ward = NepalDataEngine.getRandomWard(municipality);
   const tole = NepalDataEngine.getRandomTole();
-
-  const cleanMunicipality = municipality.name
-    .replace(' Metropolitan City', '')
-    .replace(' Sub-Metropolitan City', '')
-    .replace(' Rural Municipality', '')
-    .replace(' Municipality', '');
-
-  const fullAddress = `${tole}, Ward-${ward}, ${cleanMunicipality}, ${district.name}, ${dest.province}`;
+  const fullAddress = buildFullAddress(tole, ward, municipality.name, district.name, dest.province);
 
   return {
     province: dest.province,
@@ -147,14 +172,28 @@ export function generateNepaliTelephone(districtName?: string): string {
   return `${areaCode}-${subscriberNumber}`;
 }
 
-export function generateDateOfBirth(minAge = 20, maxAge = 55): { dob: string; age: number } {
-  const currentYear = new Date().getFullYear();
-  const age = randInt(minAge, maxAge);
-  const birthYear = currentYear - age;
-  const month = randInt(1, 12).toString().padStart(2, '0');
-  const day = randInt(1, 28).toString().padStart(2, '0');
+/**
+ * Generates an AD date of birth whose exact completed age today lies in [minAge, maxAge].
+ * The returned `age` is always the exact completed years at `now` for `dob`.
+ */
+export function generateDateOfBirth(
+  minAge = 20,
+  maxAge = 55,
+  now: Date = new Date()
+): { dob: string; age: number } {
+  const today = todayUtc(now);
+  const targetAge = randInt(minAge, maxAge);
+  // Born between (today - (age+1) years + 1 day) and (today - age years), inclusive
+  const latest = addYears(today, -targetAge);
+  const earliest = addDays(addYears(today, -(targetAge + 1)), 1);
+  let birth = randomDateBetween(earliest, latest) || latest;
+  let age = completedYears(birth, today);
+  if (age < minAge || age > maxAge) {
+    birth = latest;
+    age = completedYears(birth, today);
+  }
   return {
-    dob: `${birthYear}-${month}-${day}`,
+    dob: formatAdDate(birth),
     age,
   };
 }
@@ -184,10 +223,31 @@ export function generatePanNumber(): string {
   return Math.floor(100000000 + Math.random() * 900000000).toString();
 }
 
+/**
+ * Optional constraints for {@link generateSyntheticPerson}. Location constraints apply to the
+ * permanent address, and every location-derived field (citizenship, passport office, bank
+ * branch, landline, Devanagari) is generated from that address.
+ */
+export interface PersonGenerationOptions {
+  province?: string;
+  district?: string;
+  municipality?: string;
+  /** Reference "today" (defaults to the current date) — used for ages and document dates. */
+  now?: Date;
+}
+
+const BUSINESS_SUFFIXES = ['Enterprises', 'Trading Concern', 'Innovations', 'Suppliers', 'Group'];
+
+function slugify(value: string, maxLength = 20): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, maxLength) || 'company';
+}
+
 export function generateSyntheticPerson(
   profileType: ProfileType = 'general',
-  forcedGender?: Gender
+  forcedGender?: Gender,
+  options: PersonGenerationOptions = {}
 ): SyntheticPerson {
+  const now = options.now || new Date();
   const gender: Gender = forcedGender || (Math.random() > 0.48 ? 'Male' : 'Female');
   const firstName = gender === 'Male'
     ? NepalDataEngine.getRandomMaleName()
@@ -218,13 +278,18 @@ export function generateSyntheticPerson(
     maxAge = 68;
   }
 
-  const { dob, age } = generateDateOfBirth(minAge, maxAge);
+  const { dob, age } = generateDateOfBirth(minAge, maxAge, now);
 
   // Honorific
   const honorific = gender === 'Male' ? 'Mr.' : age > 28 ? 'Mrs.' : 'Ms.';
 
   // Address and district-coupled landline
-  const address = generateNepalAddress(undefined, profileType === 'farmer');
+  const address = generateNepalAddress(
+    options.province,
+    profileType === 'farmer' && !options.municipality,
+    options.district,
+    options.municipality
+  );
   const temporaryAddress = generateDistinctTemporaryAddress(address);
   const phone = generateNepaliPhone();
   const telephone = generateNepaliTelephone(address.district);
@@ -280,7 +345,7 @@ export function generateSyntheticPerson(
 
     companyName = inst.name;
     school = inst.name;
-    studentId = `STU-${new Date().getFullYear()}-${randInt(1000, 9999)}`;
+    studentId = `STU-${now.getFullYear()}-${randInt(1000, 9999)}`;
     grade = age >= 21 ? 'Masters Degree' : age >= 18 ? 'Bachelors Degree' : 'Grade 12';
     const studentFaculties = [
       'Faculty of Science & Technology',
@@ -298,11 +363,10 @@ export function generateSyntheticPerson(
     occupation = occ.title;
     jobTitle = occ.title;
     department = occ.department;
-    companyName = NepalDataEngine.getRandomCompany(occ.companyType).name;
+    companyName = NepalDataEngine.getEmployerForOccupation(occ);
     designation = occ.title;
     employeeId = `EMP-${randInt(10000, 99999)}`;
-    const cleanComp = companyName.toLowerCase().replace(/[^a-z]/g, '').slice(0, 10);
-    workEmail = `${firstName.toLowerCase()}@${cleanComp}.com.np`;
+    workEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${slugify(companyName)}.example.test`;
     panNumber = generatePanNumber();
     salary = `${randInt(35, 180)},000 NPR`;
   } else if (profileType === 'business') {
@@ -310,7 +374,9 @@ export function generateSyntheticPerson(
     jobTitle = 'Managing Director';
     department = 'Executive Management';
     businessType = sample(['Private Limited', 'Proprietorship', 'Partnership Firm']);
-    businessName = `${lastName} ${sample(['Enterprises', 'Trading Concern', 'Innovations', 'Suppliers', 'Group'])} ${businessType === 'Private Limited' ? 'Pvt. Ltd.' : ''}`;
+    businessName = [lastName, sample(BUSINESS_SUFFIXES), businessType === 'Private Limited' ? 'Pvt. Ltd.' : '']
+      .filter(Boolean)
+      .join(' ');
     companyName = businessName;
     panNumber = generatePanNumber();
     vatNumber = `VAT-${panNumber}`;
@@ -318,13 +384,15 @@ export function generateSyntheticPerson(
   } else if (profileType === 'teacher') {
     const subjects = ['Mathematics', 'Physics', 'English Literature', 'Nepali', 'Social Studies', 'Computer Science', 'Economics', 'Chemistry'];
     subject = sample(subjects);
-    faculty = subject.includes('Physics') || subject.includes('Mathematics') || subject.includes('Computer')
+    faculty = subject.includes('Physics') || subject.includes('Mathematics') || subject.includes('Computer') || subject.includes('Chemistry')
       ? 'Faculty of Science & Technology'
       : 'Faculty of Humanities & Social Sciences';
-    occupation = age > 35 ? 'Senior Lecturer' : 'Teacher';
+    const inst = sample(NepalDataEngine.institutions);
+    occupation = inst.type === 'School'
+      ? (age > 35 ? 'Secondary School Teacher' : 'Teacher')
+      : (age > 35 ? 'Senior Lecturer' : 'Lecturer');
     jobTitle = occupation;
     department = `Department of ${subject}`;
-    const inst = sample(NepalDataEngine.institutions);
     companyName = inst.name;
     school = inst.name;
     employeeId = `FAC-${randInt(1000, 9999)}`;
@@ -335,8 +403,7 @@ export function generateSyntheticPerson(
     department = 'Agricultural Operations';
     const crops = ['Paddy (Dhan)', 'Maize (Makai)', 'Organic Tea', 'Large Cardamom (Alainchi)', 'Himalayan Coffee', 'Dairy Farming', 'Vegetable Farming'];
     cropType = sample(crops);
-    const cleanMuni = address.municipality.replace(/ (Rural )?Municipality.*/, '');
-    cooperative = `${cleanMuni} Sana Kisan Agriculture Cooperative Ltd.`;
+    cooperative = `${stripMunicipalitySuffix(address.municipality)} Sana Kisan Agriculture Cooperative Ltd.`;
     companyName = cooperative;
   } else {
     // General person
@@ -344,15 +411,15 @@ export function generateSyntheticPerson(
     occupation = occ.title;
     jobTitle = occ.title;
     department = occ.department;
-    companyName = NepalDataEngine.getRandomCompany(occ.companyType).name;
+    companyName = NepalDataEngine.getEmployerForOccupation(occ);
     panNumber = generatePanNumber();
   }
 
-  const citizenship = generateCitizenshipDetails(address.district, dobBS);
+  const citizenship = age >= 16 ? generateCitizenshipDetails(address.district, dobBS, now) : undefined;
   const nationalId = generateNationalId();
-  const passport = generatePassportDetails(address.district, dob);
-  const drivingLicense = generateDrivingLicenseDetails(address.province);
-  const banking = generateBankingDetails(fullName, `${firstName} ${lastName}`, address.district, phone);
+  const passport = generatePassportDetails(address.district, dob, now);
+  const drivingLicense = generateDrivingLicenseDetails(address.province, dob, now);
+  const banking = generateBankingDetails(fullName, transliterateName(fullName), address.district, phone);
 
   const person: SyntheticPerson = {
     profileType,
@@ -401,23 +468,23 @@ export function generateSyntheticPerson(
     cooperative,
     cropType,
 
-    // Verified Government Documents
-    citizenshipNumber: citizenship.citizenshipNumber,
-    citizenshipIssueDistrict: citizenship.citizenshipIssueDistrict,
-    citizenshipIssueDateBS: citizenship.citizenshipIssueDateBS,
-    citizenshipIssuedBy: citizenship.citizenshipIssuedBy,
+    // Verified Government Documents (undefined when the person is too young to hold one)
+    citizenshipNumber: citizenship?.citizenshipNumber,
+    citizenshipIssueDistrict: citizenship?.citizenshipIssueDistrict,
+    citizenshipIssueDateBS: citizenship?.citizenshipIssueDateBS,
+    citizenshipIssuedBy: citizenship?.citizenshipIssuedBy,
 
     nationalId,
 
-    passportNumber: passport.passportNumber,
-    passportIssueDate: passport.passportIssueDate,
-    passportExpiryDate: passport.passportExpiryDate,
-    passportIssuedBy: passport.passportIssuedBy,
+    passportNumber: passport?.passportNumber,
+    passportIssueDate: passport?.passportIssueDate,
+    passportExpiryDate: passport?.passportExpiryDate,
+    passportIssuedBy: passport?.passportIssuedBy,
 
-    drivingLicenseNumber: drivingLicense.drivingLicenseNumber,
-    drivingLicenseCategory: drivingLicense.drivingLicenseCategory,
-    drivingLicenseIssueDate: drivingLicense.drivingLicenseIssueDate,
-    drivingLicenseExpiryDate: drivingLicense.drivingLicenseExpiryDate,
+    drivingLicenseNumber: drivingLicense?.drivingLicenseNumber,
+    drivingLicenseCategory: drivingLicense?.drivingLicenseCategory,
+    drivingLicenseIssueDate: drivingLicense?.drivingLicenseIssueDate,
+    drivingLicenseExpiryDate: drivingLicense?.drivingLicenseExpiryDate,
 
     // FinTech, Banking & Digital Wallets
     bankName: banking.bankName,

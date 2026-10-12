@@ -1,31 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
-import { generateSyntheticPerson } from '../generator/personGenerator';
-import { FillOptions, FillScript, PageFieldInspection, SupportedFieldType, SyntheticPerson } from '../types';
+import { FillScript, PageFieldInspection, ProfileType, SupportedFieldType, SyntheticPerson } from '../types';
 import {
   Check,
   RefreshCw,
   RotateCcw,
   Zap,
-  Sparkles,
   MapPin,
   Phone,
   Mail,
   Briefcase,
-  Bot,
   Settings,
-  Eye,
-  EyeOff,
   Trash2,
-  ShieldCheck,
   Globe,
-  Activity,
-  AlertCircle,
-  CheckCircle2,
   Copy,
   Sun,
   Moon,
   Laptop,
+  Loader2,
+  ShieldCheck,
+  Bot,
+  Link2,
 } from 'lucide-react';
 import {
   ThemePreference,
@@ -34,7 +29,6 @@ import {
   saveThemePreference,
   setupSystemThemeListener,
 } from '../utils/themeManager';
-import { clearClassificationCache, getCacheStats } from '../services/classificationCache';
 import {
   deleteDomainRule,
   FieldMappingRule,
@@ -42,1044 +36,610 @@ import {
   normalizeDomain,
   saveDomainRule,
 } from '../services/domainMapping';
+import { PersonaPreset, getPersonaPresets } from '../services/personaPresets';
 import {
-  VALID_FIELD_TYPES,
-  testGeminiConnection,
-  GeminiConnectionTestResult,
-  SUPPORTED_GEMINI_MODELS,
-  DEFAULT_GEMINI_MODEL,
-  resolveGeminiModel,
-} from '../services/geminiClassifier';
-import {
-  PersonaPreset,
-  getPersonaPresets,
-  generatePersonFromPreset,
-} from '../services/personaPresets';
-import {
-  serializePersonaToJson,
-  copyTextToClipboard,
-} from '../utils/personaExport';
+  DEFAULT_FILL_CATEGORIES,
+  FillCategories,
+  FillSettings,
+  generatePersonForSettings,
+  loadCurrentPerson,
+  loadFillSettings,
+  saveCurrentPerson,
+  saveSettings,
+  toFillOptions,
+} from '../services/settings';
+import { serializePersonaToJson, copyTextToClipboard } from '../utils/personaExport';
+import { fieldTypeLabel, MAPPABLE_FIELD_TYPES } from '../utils/fieldTypeLabels';
+
+type Status = { type: 'success' | 'warning' | 'error'; message: string } | null;
+
+const ARCHETYPES: Array<{ id: ProfileType; label: string }> = [
+  { id: 'general', label: 'General citizen' },
+  { id: 'student', label: 'Student' },
+  { id: 'employee', label: 'Employee' },
+  { id: 'business', label: 'Business owner' },
+  { id: 'teacher', label: 'Teacher' },
+  { id: 'farmer', label: 'Farmer' },
+];
+
+const CATEGORIES: Array<{ id: keyof FillCategories; label: string }> = [
+  { id: 'personal', label: 'Personal' },
+  { id: 'contact', label: 'Contact' },
+  { id: 'address', label: 'Address' },
+  { id: 'professional', label: 'Work' },
+];
+
+const RESTRICTED_URL = /^(chrome|chrome-extension|edge|about|devtools|view-source):|^https:\/\/chromewebstore\.google\.com|^https:\/\/chrome\.google\.com\/webstore/;
+
+function plural(count: number, noun = 'field'): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+function hasChrome(): boolean {
+  return typeof chrome !== 'undefined' && Boolean(chrome.tabs);
+}
+
+async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
+  if (!hasChrome()) return undefined;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+/**
+ * Messages every frame of the tab. If the page was open before the extension was
+ * installed it has no content script yet, so inject it once and retry.
+ */
+async function sendToTab<T = any>(tabId: number, message: unknown, topFrameOnly = false): Promise<T | undefined> {
+  const opts = topFrameOnly ? { frameId: 0 } : {};
+  try {
+    return await chrome.tabs.sendMessage(tabId, message, opts);
+  } catch {
+    const files = chrome.runtime.getManifest().content_scripts?.[0]?.js;
+    if (!files?.length) return undefined;
+    try {
+      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files });
+      return await chrome.tabs.sendMessage(tabId, message, opts);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function describeWork(person: SyntheticPerson, np: boolean): string {
+  if (np && person.devanagari) return `${person.devanagari.occupation} · ${person.devanagari.companyName}`;
+  if (person.school && person.profileType === 'student') return `${person.grade || 'Student'} · ${person.school}`;
+  if (person.businessName) return `${person.jobTitle} · ${person.businessName}`;
+  if (person.cropType) return `${person.occupation} · ${person.cropType}`;
+  return `${person.occupation} · ${person.companyName}`;
+}
 
 export const App: React.FC = () => {
-  const [person, setPerson] = useState<SyntheticPerson>(() => generateSyntheticPerson());
-  const [profile, setProfile] = useState<FillOptions['profile']>('general');
+  const [person, setPerson] = useState<SyntheticPerson | null>(null);
+  const [profile, setProfile] = useState<ProfileType>('general');
+  const [presetId, setPresetId] = useState<string | null>(null);
   const [script, setScript] = useState<FillScript>('en');
-  const [categories, setCategories] = useState<FillOptions['fillCategories']>({
-    personal: true,
-    contact: true,
-    address: true,
-    professional: true,
-  });
-  const [status, setStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
+  const [categories, setCategories] = useState<FillCategories>(DEFAULT_FILL_CATEGORIES);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiReady, setAiReady] = useState(false);
+  const [presets, setPresets] = useState<PersonaPreset[]>([]);
+  const [status, setStatus] = useState<Status>(null);
   const [isFilling, setIsFilling] = useState(false);
   const [isReverting, setIsReverting] = useState(false);
   const [isSessionSynced, setIsSessionSynced] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const [tabId, setTabId] = useState<number | null>(null);
+  const [tabUrl, setTabUrl] = useState<string>('');
+  const [fillShortcut, setFillShortcut] = useState<string>('');
 
-  // Tab State: 'fill' | 'mappings'
   const [activeTab, setActiveTab] = useState<'fill' | 'mappings'>('fill');
-
-  // Website Mapping & Inspector State
-  const [activeDomain, setActiveDomain] = useState<string>('localhost');
+  const [activeDomain, setActiveDomain] = useState<string>('');
   const [inspectedFields, setInspectedFields] = useState<PageFieldInspection[]>([]);
   const [domainRules, setDomainRules] = useState<FieldMappingRule[]>([]);
   const [isInspecting, setIsInspecting] = useState(false);
   const [selectedOverrides, setSelectedOverrides] = useState<Record<string, SupportedFieldType>>({});
 
-  // Gemini AI Settings State
-  const [showAiSettings, setShowAiSettings] = useState(false);
-  const [aiEnabled, setAiEnabled] = useState(false);
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [geminiModel, setGeminiModel] = useState<string>(DEFAULT_GEMINI_MODEL);
-  const [showKey, setShowKey] = useState(false);
-  const [cacheCount, setCacheCount] = useState(0);
-  const [aiSaveMsg, setAiSaveMsg] = useState<string | null>(null);
-  const [testStatus, setTestStatus] = useState<GeminiConnectionTestResult | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
+  // Iframes fill independently and report their counts; only the top frame replies directly.
+  const fillCounts = useRef<{ top: number; frames: number } | null>(null);
+  const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Persona Presets State
-  const [presets, setPresets] = useState<PersonaPreset[]>([]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const isRestricted = !tabUrl || RESTRICTED_URL.test(tabUrl);
+  const np = script === 'np' && Boolean(person?.devanagari);
 
-  // Copy as JSON state
-  const [copiedJson, setCopiedJson] = useState(false);
+  const flash = useCallback((next: Status, ms = 0) => {
+    if (statusTimer.current) clearTimeout(statusTimer.current);
+    setStatus(next);
+    if (ms > 0) statusTimer.current = setTimeout(() => setStatus(null), ms);
+  }, []);
 
-  // Theme Preference State
-  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const showFillCount = useCallback(() => {
+    const counts = fillCounts.current;
+    if (!counts) return;
+    const total = counts.top + counts.frames;
+    flash(
+      total > 0
+        ? { type: 'success', message: `Filled ${plural(total)}.` }
+        : { type: 'warning', message: 'No fillable fields found on this page.' }
+    );
+  }, [flash]);
 
-  // Load preferences from chrome.storage
   useEffect(() => {
-    // Load and apply theme preference
     loadThemePreference().then((pref) => {
       setThemePreference(pref);
       applyThemeToDocument(pref);
     });
-
     const cleanupTheme = setupSystemThemeListener(() => {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.get(['theme'], (res) => {
-          const currentPref = (res?.theme as ThemePreference) || 'system';
-          if (currentPref === 'system') {
-            applyThemeToDocument('system');
-          }
-        });
-      } else {
-        applyThemeToDocument('system');
+      loadThemePreference().then((pref) => {
+        if (pref === 'system') applyThemeToDocument('system');
+      });
+    });
+
+    const onMessage = (message: { action?: string; count?: number }) => {
+      if (message?.action === 'FRAME_FILLED' && fillCounts.current) {
+        fillCounts.current.frames += message.count || 0;
+        showFillCount();
       }
-    });
+    };
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) chrome.runtime.onMessage.addListener(onMessage);
 
-    // Load presets
-    getPersonaPresets().then((list) => {
-      setPresets(list);
-    });
+    (async () => {
+      const [settings, presetList, tab] = await Promise.all([loadFillSettings(), getPersonaPresets(), getActiveTab()]);
 
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.get(
-        ['selectedProfile', 'selectedPresetId', 'fillCategories', 'fillScript', 'geminiApiKey', 'geminiAiClassificationEnabled', 'geminiModel'],
-        async (res: Record<string, any>) => {
-          const list = await getPersonaPresets();
-          setPresets(list);
+      const validPresetId = settings.presetId && presetList.some((p) => p.id === settings.presetId) ? settings.presetId : null;
+      const effective: FillSettings = { ...settings, presetId: validPresetId };
 
-          if (res.selectedPresetId) {
-            setSelectedPresetId(res.selectedPresetId);
-            const matched = list.find((p) => p.id === res.selectedPresetId);
-            if (matched) {
-              setProfile(matched.baseProfile);
-              if (matched.preferredScript) setScript(matched.preferredScript);
-            }
-          } else if (res.selectedProfile) {
-            setProfile(res.selectedProfile);
-          }
+      setPresets(presetList);
+      setProfile(settings.profile);
+      setPresetId(validPresetId);
+      setScript(settings.fillScript);
+      setCategories(settings.fillCategories);
+      setAiEnabled(settings.aiEnabled);
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const { geminiApiKey } = (await chrome.storage.local.get(['geminiApiKey'])) as Record<string, unknown>;
+        setAiReady(Boolean(geminiApiKey));
+      }
 
-          if (res.fillCategories) setCategories(res.fillCategories);
-          if (res.fillScript === 'en' || res.fillScript === 'np') setScript(res.fillScript);
-          if (res.geminiApiKey) setGeminiApiKey(res.geminiApiKey);
-          if (typeof res.geminiAiClassificationEnabled === 'boolean') {
-            setAiEnabled(res.geminiAiClassificationEnabled);
-          }
-          if (res.geminiModel) setGeminiModel(resolveGeminiModel(res.geminiModel));
+      if (tab?.id !== undefined) {
+        setTabId(tab.id);
+        setTabUrl(tab.url || '');
+        if (tab.url) setActiveDomain(normalizeDomain(tab.url));
+      }
+
+      // Prefer the persona retained by this tab (multi-step wizards), then the one last shown here.
+      if (tab?.id !== undefined && tab.url && !RESTRICTED_URL.test(tab.url)) {
+        const res = await chrome.tabs
+          .sendMessage(tab.id, { action: 'GET_SESSION_PERSONA' }, { frameId: 0 })
+          .catch(() => undefined);
+        if (res?.status === 'ok' && res.person) {
+          setPerson(res.person);
+          setIsSessionSynced(true);
+          return;
         }
-      );
-    }
+      }
 
-    // Query active tab to check if a persona was retained across multi-step wizard
-    if (typeof chrome !== 'undefined' && chrome.tabs) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tab = tabs[0];
-        if (tab && tab.id) {
-          chrome.tabs.sendMessage(tab.id, { action: 'GET_SESSION_PERSONA' }, (res) => {
-            if (!chrome.runtime.lastError && res?.status === 'ok' && res.person) {
-              setPerson(res.person);
-              setIsSessionSynced(true);
-              if (res.person.profileType) setProfile(res.person.profileType);
-              if (res.options) {
-                if (res.options.fillScript) setScript(res.options.fillScript);
-                if (res.options.fillCategories) setCategories(res.options.fillCategories);
-              }
-            }
-          });
-        }
+      const current = await loadCurrentPerson();
+      const matchesSelection = current && (validPresetId || current.profileType === settings.profile);
+      if (current && matchesSelection) {
+        setPerson(current);
+      } else {
+        const fresh = await generatePersonForSettings(effective);
+        setPerson(fresh);
+        await saveCurrentPerson(fresh);
+      }
+    })();
+
+    if (typeof chrome !== 'undefined' && chrome.commands?.getAll) {
+      chrome.commands.getAll((cmds) => {
+        setFillShortcut(cmds.find((c) => c.name === 'quick-fill')?.shortcut || '');
       });
     }
 
-    getCacheStats().then((stats) => setCacheCount(stats.count));
-
     return () => {
       cleanupTheme();
+      if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) chrome.runtime.onMessage.removeListener(onMessage);
     };
-  }, []);
+  }, [showFillCount]);
+
+  const currentSettings = (): FillSettings => ({ profile, presetId, fillScript: script, fillCategories: categories, aiEnabled });
+
+  /** Makes a new person the active one everywhere: popup, shortcuts, badge, and this tab's wizard session. */
+  const adoptPerson = async (next: SyntheticPerson, settings: FillSettings) => {
+    setPerson(next);
+    setIsSessionSynced(false);
+    await saveCurrentPerson(next);
+    if (tabId !== null && !isRestricted) {
+      chrome.tabs
+        .sendMessage(tabId, { action: 'SET_SESSION_PERSONA', person: next, options: toFillOptions(settings) })
+        .catch(() => undefined);
+    }
+  };
 
   const handleCycleTheme = async () => {
-    const next: ThemePreference =
-      themePreference === 'system' ? 'light' :
-      themePreference === 'light' ? 'dark' : 'system';
+    const next: ThemePreference = themePreference === 'system' ? 'light' : themePreference === 'light' ? 'dark' : 'system';
     setThemePreference(next);
     applyThemeToDocument(next);
     await saveThemePreference(next);
   };
 
-  const toggleScript = (newScript: FillScript) => {
-    setScript(newScript);
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.set({ fillScript: newScript });
-    }
-  };
-
-  const handleSaveAiSettings = () => {
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.set(
-        {
-          geminiApiKey,
-          geminiAiClassificationEnabled: aiEnabled,
-          geminiModel,
-        },
-        () => {
-          setAiSaveMsg('Saved successfully!');
-          setTimeout(() => setAiSaveMsg(null), 2500);
-        }
-      );
+  const handlePersonaChange = async (value: string) => {
+    let settings: FillSettings;
+    if (value.startsWith('archetype:')) {
+      const nextProfile = value.slice('archetype:'.length) as ProfileType;
+      settings = { ...currentSettings(), profile: nextProfile, presetId: null };
+      setProfile(nextProfile);
+      setPresetId(null);
+      await saveSettings({ selectedProfile: nextProfile, selectedPresetId: null });
     } else {
-      setAiSaveMsg('Saved locally.');
-      setTimeout(() => setAiSaveMsg(null), 2500);
+      const preset = presets.find((p) => p.id === value);
+      if (!preset) return;
+      const nextScript = preset.preferredScript || script;
+      settings = { ...currentSettings(), profile: preset.baseProfile, presetId: preset.id, fillScript: nextScript };
+      setProfile(preset.baseProfile);
+      setPresetId(preset.id);
+      setScript(nextScript);
+      await saveSettings({ selectedProfile: preset.baseProfile, selectedPresetId: preset.id, fillScript: nextScript });
     }
+    flash(null);
+    await adoptPerson(await generatePersonForSettings(settings), settings);
   };
 
-  const handleClearCache = async () => {
-    await clearClassificationCache();
-    setCacheCount(0);
-    setAiSaveMsg('Cache cleared!');
-    setTimeout(() => setAiSaveMsg(null), 2500);
+  const handleScript = (next: FillScript) => {
+    setScript(next);
+    saveSettings({ fillScript: next });
   };
 
-  const handleTestConnection = async () => {
-    setIsTesting(true);
-    setTestStatus(null);
-    try {
-      const res = await testGeminiConnection(geminiApiKey, geminiModel);
-      setTestStatus(res);
-    } catch (err) {
-      setTestStatus({
-        success: false,
-        status: 'error',
-        message: `Connection test failed: ${err instanceof Error ? err.message : String(err)}`,
-        model: geminiModel,
-      });
-    } finally {
-      setIsTesting(false);
-    }
+  const toggleCategory = (cat: keyof FillCategories) => {
+    const updated = { ...categories, [cat]: !categories[cat] };
+    setCategories(updated);
+    saveSettings({ fillCategories: updated });
   };
 
-  const loadActiveDomainAndInspect = useCallback(async () => {
-    setIsInspecting(true);
-    try {
-      if (typeof chrome === 'undefined' || !chrome.tabs) {
-        setActiveDomain('localhost');
-        const mapping = await getDomainMapping('localhost');
-        setDomainRules(mapping?.rules || []);
-        setIsInspecting(false);
-        return;
-      }
-
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || !tab.url || !tab.id) {
-        setIsInspecting(false);
-        return;
-      }
-
-      const domain = normalizeDomain(tab.url);
-      setActiveDomain(domain);
-
-      const mapping = await getDomainMapping(domain);
-      setDomainRules(mapping?.rules || []);
-
-      chrome.tabs.sendMessage(tab.id, { action: 'GET_PAGE_FIELDS' }, (res: any) => {
-        if (chrome.runtime.lastError || !res) {
-          setInspectedFields([]);
-        } else if (res?.status === 'ok') {
-          setInspectedFields(res.fields || []);
-        }
-        setIsInspecting(false);
-      });
-    } catch {
-      setIsInspecting(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'mappings') {
-      loadActiveDomainAndInspect();
-    }
-  }, [activeTab, loadActiveDomainAndInspect]);
-
-  const handleSaveOverride = async (fieldIdentifier: string, targetType: SupportedFieldType) => {
-    await saveDomainRule(activeDomain, {
-      selectorOrName: fieldIdentifier,
-      targetType,
-      description: `Mapped on ${activeDomain}`,
-    });
-    await loadActiveDomainAndInspect();
-  };
-
-  const handleDeleteRule = async (selectorOrName: string) => {
-    await deleteDomainRule(activeDomain, selectorOrName);
-    await loadActiveDomainAndInspect();
-  };
-
-  const handlePresetOrArchetypeChange = (selectionValue: string) => {
-    if (selectionValue.startsWith('archetype_')) {
-      const newProfile = selectionValue.replace('archetype_', '') as FillOptions['profile'];
-      setSelectedPresetId(null);
-      setProfile(newProfile);
-      const newPerson = generateSyntheticPerson(newProfile);
-      setPerson(newPerson);
-      setIsSessionSynced(false);
-      setStatus(null);
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ selectedProfile: newProfile, selectedPresetId: null });
-      }
-    } else {
-      const preset = presets.find((p) => p.id === selectionValue);
-      if (preset) {
-        setSelectedPresetId(preset.id);
-        setProfile(preset.baseProfile);
-        if (preset.preferredScript) setScript(preset.preferredScript);
-        const newPerson = generatePersonFromPreset(preset);
-        setPerson(newPerson);
-        setIsSessionSynced(false);
-        setStatus({
-          type: 'success',
-          message: `Activated QA preset "${preset.name}"`,
-        });
-        setTimeout(() => setStatus(null), 2500);
-        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-          chrome.storage.local.set({
-            selectedProfile: preset.baseProfile,
-            selectedPresetId: preset.id,
-            fillScript: preset.preferredScript || script,
-          });
-        }
-      }
-    }
-  };
-
-  const toggleCategory = (cat: keyof FillOptions['fillCategories']) => {
-    setCategories((prev) => {
-      const updated = { ...prev, [cat]: !prev[cat] };
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ fillCategories: updated });
-      }
-      return updated;
-    });
+  const handleRegenerate = async () => {
+    flash(null);
+    const settings = currentSettings();
+    await adoptPerson(await generatePersonForSettings(settings), settings);
   };
 
   const handleCopyJson = async () => {
-    try {
-      const jsonStr = serializePersonaToJson(person, { script });
-      const success = await copyTextToClipboard(jsonStr);
-      if (success) {
-        setCopiedJson(true);
-        setStatus({
-          type: 'success',
-          message: 'Persona JSON copied to clipboard for Postman / Swagger!',
-        });
-        setTimeout(() => setCopiedJson(false), 2500);
-      } else {
-        setStatus({
-          type: 'warning',
-          message: 'Could not access clipboard automatically.',
-        });
-      }
-    } catch (err) {
-      console.error('Failed to copy persona JSON:', err);
-      setStatus({ type: 'error', message: 'Failed to serialize or copy JSON.' });
-    }
-  };
-
-  const handleRegenerate = () => {
-    let newPerson: SyntheticPerson;
-    if (selectedPresetId) {
-      const matched = presets.find((p) => p.id === selectedPresetId);
-      if (matched) {
-        newPerson = generatePersonFromPreset(matched);
-      } else {
-        newPerson = generateSyntheticPerson(profile);
-      }
+    if (!person) return;
+    const ok = await copyTextToClipboard(serializePersonaToJson(person, { script }));
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
     } else {
-      newPerson = generateSyntheticPerson(profile);
-    }
-
-    setPerson(newPerson);
-    setIsSessionSynced(false);
-    setStatus(null);
-
-    if (typeof chrome !== 'undefined' && chrome.tabs) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tab = tabs[0];
-        if (tab && tab.id) {
-          chrome.tabs.sendMessage(tab.id, {
-            action: 'SET_SESSION_PERSONA',
-            person: newPerson,
-            options: { profile, fillScript: script, fillCategories: categories },
-          });
-        }
-      });
+      flash({ type: 'error', message: 'Could not copy to the clipboard.' }, 3000);
     }
   };
-
 
   const handleFillPage = async () => {
+    if (!person || tabId === null) return;
     setIsFilling(true);
-    setStatus(null);
+    flash(null);
+    fillCounts.current = { top: 0, frames: 0 };
 
-    try {
-      if (typeof chrome === 'undefined' || !chrome.tabs) {
-        // Fallback for non-extension preview / test environment
-        setStatus({ type: 'warning', message: 'Chrome extension environment not detected.' });
-        setIsFilling(false);
-        return;
-      }
+    const response = await sendToTab(tabId, { action: 'FILL_PAGE', person, options: toFillOptions(currentSettings()) });
+    setIsFilling(false);
 
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || !tab.id) {
-        setStatus({ type: 'error', message: 'No active browser tab found.' });
-        setIsFilling(false);
-        return;
-      }
-
-      // Check if we can inject or message content script
-      const options: FillOptions = {
-        profile,
-        fillScript: script,
-        fillCategories: categories,
-        enableAiClassification: aiEnabled,
-      };
-
-      chrome.tabs.sendMessage(tab.id, { action: 'FILL_PAGE', person, options }, async (response: any) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError || !response) {
-          // Attempt on-demand injection if content script wasn't active
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id! },
-              files: ['src/content/index.ts'],
-            });
-
-            // Retry sending message after script injection
-            setTimeout(() => {
-              chrome.tabs.sendMessage(tab.id!, { action: 'FILL_PAGE', person, options }, (retryResponse: any) => {
-                if (retryResponse?.status === 'ok') {
-                  const count = retryResponse.result?.fieldsFilledCount ?? 0;
-                  setStatus({
-                    type: 'success',
-                    message: `Successfully filled ${count} field${count === 1 ? '' : 's'}!`,
-                  });
-                } else {
-                  setStatus({
-                    type: 'warning',
-                    message: 'Page opened is restricted or does not contain fillable forms.',
-                  });
-                }
-                setIsFilling(false);
-              });
-            }, 100);
-          } catch {
-            setStatus({
-              type: 'error',
-              message: 'Cannot fill form on this tab (e.g. chrome:// or restricted page).',
-            });
-            setIsFilling(false);
-          }
-          return;
-        }
-
-        if (response.status === 'ok') {
-          const count = response.result?.fieldsFilledCount ?? 0;
-          setIsSessionSynced(true);
-          setStatus({
-            type: 'success',
-            message: `Successfully filled ${count} field${count === 1 ? '' : 's'}!`,
-          });
-        } else {
-          setStatus({
-            type: 'error',
-            message: response.message || 'Error occurred while filling the form.',
-          });
-        }
-        setIsFilling(false);
-      });
-    } catch (err) {
-      console.error(err);
-      setStatus({ type: 'error', message: 'Failed to communicate with tab.' });
-      setIsFilling(false);
+    if (response?.status === 'ok') {
+      fillCounts.current.top = response.result?.fieldsFilledCount ?? 0;
+      setIsSessionSynced(true);
+      showFillCount();
+    } else if (response?.status === 'error') {
+      flash({ type: 'error', message: 'Something went wrong while filling this page.' });
+    } else {
+      flash({ type: 'error', message: 'This page cannot be filled. Try reloading it.' });
     }
   };
 
   const handleUndoFill = async () => {
+    if (tabId === null) return;
     setIsReverting(true);
-    setStatus(null);
+    flash(null);
+    const response = await sendToTab(tabId, { action: 'UNDO_FILL' });
+    setIsReverting(false);
 
-    try {
-      if (typeof chrome === 'undefined' || !chrome.tabs) {
-        setStatus({ type: 'warning', message: 'Chrome extension environment not detected.' });
-        setIsReverting(false);
-        return;
-      }
-
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || !tab.id) {
-        setStatus({ type: 'error', message: 'No active browser tab found.' });
-        setIsReverting(false);
-        return;
-      }
-
-      chrome.tabs.sendMessage(tab.id, { action: 'UNDO_FILL' }, (response: any) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError || !response || response.status !== 'ok') {
-          setStatus({
-            type: 'warning',
-            message: 'Could not revert form. Please ensure the page has form fields.',
-          });
-        } else {
-          const count = response.result?.revertedCount ?? 0;
-          const action = response.result?.action;
-          setStatus({
-            type: 'success',
-            message:
-              action === 'reverted'
-                ? `Reverted ${count} field${count === 1 ? '' : 's'} to pre-fill state!`
-                : `Cleared ${count} field${count === 1 ? '' : 's'}!`,
-          });
-        }
-        setIsReverting(false);
-      });
-    } catch (err) {
-      console.error('Undo fill error:', err);
-      setStatus({ type: 'error', message: 'Failed to communicate with tab.' });
-      setIsReverting(false);
+    if (response?.status === 'ok') {
+      const count = response.result?.revertedCount ?? 0;
+      const verb = response.result?.action === 'reverted' ? 'Restored' : 'Cleared';
+      flash(
+        count > 0
+          ? { type: 'success', message: `${verb} ${plural(count)}.` }
+          : { type: 'warning', message: 'Nothing to undo on this page.' },
+        3000
+      );
+    } else {
+      flash({ type: 'error', message: 'Could not reach this page. Try reloading it.' }, 3000);
     }
   };
 
+  const loadMappings = useCallback(async () => {
+    if (tabId === null || !activeDomain) return;
+    setIsInspecting(true);
+    const mapping = await getDomainMapping(activeDomain);
+    setDomainRules(mapping?.rules || []);
+    const res = await sendToTab(tabId, { action: 'GET_PAGE_FIELDS' }, true);
+    setInspectedFields(res?.status === 'ok' ? res.fields || [] : []);
+    setSelectedOverrides({});
+    setIsInspecting(false);
+  }, [tabId, activeDomain]);
+
+  useEffect(() => {
+    if (activeTab === 'mappings' && !isRestricted) loadMappings();
+  }, [activeTab, isRestricted, loadMappings]);
+
+  const handleSaveOverride = async (fieldKey: string, targetType: SupportedFieldType) => {
+    await saveDomainRule(activeDomain, {
+      selectorOrName: fieldKey,
+      targetType,
+      matchType: 'name_or_id',
+      description: `Mapped on ${activeDomain}`,
+    });
+    await loadMappings();
+  };
+
+  const handleDeleteRule = async (selectorOrName: string) => {
+    await deleteDomainRule(activeDomain, selectorOrName);
+    await loadMappings();
+  };
+
+  const openSettings = (section?: string) => {
+    if (typeof chrome === 'undefined' || !chrome.runtime) return;
+    if (section) {
+      chrome.tabs.create({ url: chrome.runtime.getURL(`src/options/index.html#${section}`) });
+      window.close();
+    } else {
+      chrome.runtime.openOptionsPage();
+    }
+  };
+
+  const themeLabel = themePreference === 'system' ? 'System theme' : themePreference === 'light' ? 'Light theme' : 'Dark theme';
+  const personaValue = presetId || `archetype:${profile}`;
+  const builtinPresets = presets.filter((p) => p.isBuiltin);
+  const customPresets = presets.filter((p) => !p.isBuiltin);
+
   return (
-    <div className="app-container">
-      {/* Header */}
+    <div className="app">
       <header className="app-header">
-        <div className="header-brand">
-          <span className="flag-badge" role="img" aria-label="Nepal Flag">🇳🇵</span>
+        <div className="brand">
+          <img className="brand-logo" src="/icons/icon-48.png" alt="" width={28} height={28} />
           <div>
-            <div className="brand-title">
-              Nepal Test Filler
-              <span className="brand-badge">MVP</span>
-            </div>
-            <div className="brand-subtitle">Realistic Synthetic Test Data</div>
+            <div className="brand-title">Nepal Test Filler</div>
+            <div className="brand-subtitle">Synthetic Nepali test data</div>
           </div>
         </div>
         <div className="header-actions">
-          <button
-            type="button"
-            className="btn-icon-header"
-            onClick={handleCycleTheme}
-            title={`Theme: ${themePreference === 'system' ? 'Auto (System)' : themePreference === 'light' ? 'Warm Light' : 'Warm Dark'} (Click to cycle)`}
-            aria-label="Cycle theme"
-          >
-            {themePreference === 'dark' ? (
-              <Moon size={16} />
-            ) : themePreference === 'light' ? (
-              <Sun size={16} />
-            ) : (
-              <Laptop size={16} />
-            )}
+          <button type="button" className="icon-btn" onClick={handleCycleTheme} title={`${themeLabel} (click to change)`} aria-label={themeLabel}>
+            {themePreference === 'dark' ? <Moon size={16} /> : themePreference === 'light' ? <Sun size={16} /> : <Laptop size={16} />}
           </button>
-          <button
-            type="button"
-            className={`btn-icon-header ${showAiSettings ? 'active' : ''}`}
-            onClick={() => setShowAiSettings(!showAiSettings)}
-            title="Gemini AI Settings"
-          >
+          <button type="button" className="icon-btn" onClick={() => openSettings()} title="Settings" aria-label="Open settings">
             <Settings size={16} />
           </button>
         </div>
       </header>
 
-      {/* Mode Indicator Pill */}
-      <div className="mode-pill-row">
-        <span className={`mode-pill ${aiEnabled && geminiApiKey ? 'ai-active' : 'offline'}`}>
-          {aiEnabled && geminiApiKey ? (
-            <>
-              <Bot size={12} />
-              AI Unknown Field Fallback Active
-            </>
-          ) : (
-            <>
-              <ShieldCheck size={12} />
-              100% Offline Local Engine
-            </>
-          )}
-        </span>
-      </div>
-
-      {/* Collapsible AI Settings Panel */}
-      {showAiSettings && (
-        <div className="ai-settings-card">
-          <div className="ai-settings-header">
-            <div className="ai-settings-title">
-              <Bot size={14} />
-              <span>Gemini AI Field Classifier</span>
-            </div>
-            <span className="privacy-tag">Optional</span>
-          </div>
-
-          <p className="ai-settings-desc">
-            Classifies non-standard fields that fail local heuristic rules. Form filling operates 100% locally by default.
-          </p>
-
-          <label className="toggle-label-row">
-            <span>Enable Unknown Field Classification</span>
-            <input
-              type="checkbox"
-              className="custom-toggle"
-              checked={aiEnabled}
-              onChange={(e) => setAiEnabled(e.target.checked)}
-            />
-          </label>
-
-          {aiEnabled && (
-            <div className="ai-config-fields">
-              <div className="input-group-label">Google Gemini API Key</div>
-              <div className="api-key-input-wrapper">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  className="settings-input"
-                  placeholder="AIzaSy..."
-                  value={geminiApiKey}
-                  onChange={(e) => {
-                    setGeminiApiKey(e.target.value);
-                    if (testStatus) setTestStatus(null);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="btn-toggle-key"
-                  onClick={() => setShowKey(!showKey)}
-                  title={showKey ? 'Hide key' : 'Show key'}
-                >
-                  {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-
-              <div className="input-group-label">Gemini Model</div>
-              <select
-                className="settings-select"
-                value={geminiModel}
-                onChange={(e) => {
-                  setGeminiModel(e.target.value);
-                  if (testStatus) setTestStatus(null);
-                }}
-              >
-                {SUPPORTED_GEMINI_MODELS.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.id} ({model.description})
-                  </option>
-                ))}
-              </select>
-
-              <div className="cache-info-row">
-                <span className="cache-count-label">
-                  Cached fields: <strong>{cacheCount}</strong>
-                </span>
-                {cacheCount > 0 && (
-                  <button type="button" className="btn-clear-cache" onClick={handleClearCache}>
-                    <Trash2 size={12} /> Clear Cache
-                  </button>
-                )}
-              </div>
-
-              <div className="privacy-notice">
-                <ShieldCheck size={12} />
-                <span>Payloads are strictly sanitized (name, label, id only). Webpage content is never transmitted.</span>
-              </div>
-            </div>
-          )}
-
-          <div className="ai-settings-actions">
-            {aiSaveMsg && <span className="save-status-msg">{aiSaveMsg}</span>}
-            <button
-              type="button"
-              className="btn-test-connection"
-              onClick={handleTestConnection}
-              disabled={isTesting}
-              title="Test Gemini API key validity and quota balance"
-            >
-              <Activity size={11} className={isTesting ? 'animate-spin' : ''} />
-              {isTesting ? 'Testing...' : 'Test Connection'}
-            </button>
-            <button type="button" className="btn-save-settings" onClick={handleSaveAiSettings}>
-              Save Settings
-            </button>
-          </div>
-
-          {testStatus && (
-            <div className={`popup-test-status ${testStatus.success ? 'success' : 'error'}`}>
-              {testStatus.success ? (
-                <CheckCircle2 size={13} className="test-status-icon" />
-              ) : (
-                <AlertCircle size={13} className="test-status-icon" />
-              )}
-              <span className="test-status-text">{testStatus.message}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Navigation Tabs */}
-      <div className="popup-tab-bar">
-        <button
-          type="button"
-          className={`popup-tab-btn ${activeTab === 'fill' ? 'active' : ''}`}
-          onClick={() => setActiveTab('fill')}
-        >
-          <Zap size={13} />
-          <span>Fill Form</span>
+      <nav className="tabs" role="tablist" aria-label="Popup sections">
+        <button type="button" role="tab" aria-selected={activeTab === 'fill'} className={`tab ${activeTab === 'fill' ? 'active' : ''}`} onClick={() => setActiveTab('fill')}>
+          <Zap size={14} /> Fill
         </button>
-        <button
-          type="button"
-          className={`popup-tab-btn ${activeTab === 'mappings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('mappings')}
-        >
-          <Globe size={13} />
-          <span>Site Mappings</span>
+        <button type="button" role="tab" aria-selected={activeTab === 'mappings'} className={`tab ${activeTab === 'mappings' ? 'active' : ''}`} onClick={() => setActiveTab('mappings')}>
+          <Globe size={14} /> Site rules
         </button>
-      </div>
+      </nav>
 
       {activeTab === 'fill' ? (
-        <>
-          {/* Profile / Persona Preset Selector */}
-          <div className="section-block">
-            <div className="section-label-row">
-              <label htmlFor="profile-select" className="section-label">Target Persona / Preset</label>
-              <button
-                type="button"
-                className="btn-link-action"
-                onClick={() => {
-                  if (typeof chrome !== 'undefined' && chrome.runtime?.openOptionsPage) {
-                    chrome.runtime.openOptionsPage();
-                  }
-                }}
-                title="Configure custom persona presets in settings"
-              >
-                + Manage Presets
-              </button>
+        <main className="panel">
+          <div className="field">
+            <div className="field-label-row">
+              <label htmlFor="persona-select" className="field-label">Persona</label>
+              <button type="button" className="link-btn" onClick={() => openSettings('personas')}>Manage presets</button>
             </div>
-            <div className="select-wrapper">
-              <select
-                id="profile-select"
-                className="custom-select"
-                value={selectedPresetId || `archetype_${profile}`}
-                onChange={(e) => handlePresetOrArchetypeChange(e.target.value)}
-              >
-                <optgroup label="Default Archetypes">
-                  <option value="archetype_general">General Person</option>
-                  <option value="archetype_student">Student</option>
-                  <option value="archetype_employee">Employee</option>
-                  <option value="archetype_business">Business Owner</option>
-                  <option value="archetype_teacher">Teacher</option>
-                  <option value="archetype_farmer">Farmer</option>
+            <select id="persona-select" className="select" value={personaValue} onChange={(e) => handlePersonaChange(e.target.value)}>
+              <optgroup label="Archetypes">
+                {ARCHETYPES.map((a) => (
+                  <option key={a.id} value={`archetype:${a.id}`}>{a.label}</option>
+                ))}
+              </optgroup>
+              {builtinPresets.length > 0 && (
+                <optgroup label="Presets">
+                  {builtinPresets.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
                 </optgroup>
-                {presets.length > 0 && (
-                  <optgroup label="Custom QA Presets">
-                    {presets.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.isBuiltin ? '★' : ''} ({p.baseProfile})
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-            {selectedPresetId && (
-              <div className="preset-active-indicator">
-                <span className="preset-pill">
-                  Active Preset: <strong>{presets.find((p) => p.id === selectedPresetId)?.name || 'Custom'}</strong>
-                </span>
-              </div>
-            )}
+              )}
+              {customPresets.length > 0 && (
+                <optgroup label="My presets">
+                  {customPresets.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
           </div>
 
-          {/* Script Selection (English vs Devanagari) */}
-          <div className="section-block">
-            <div className="section-label-row">
-              <span className="section-label">Fill Script / भाषा लिपि</span>
-              <span className="script-badge-tag">{script === 'np' ? 'नेपाली (युनिकोड)' : 'English'}</span>
-            </div>
-            <div className="script-toggle-group">
-              <button
-                type="button"
-                className={`script-btn ${script === 'en' ? 'active' : ''}`}
-                onClick={() => toggleScript('en')}
-              >
-                English (Romanized)
+          <div className="field">
+            <span className="field-label" id="script-label">Script</span>
+            <div className="segmented" role="radiogroup" aria-labelledby="script-label">
+              <button type="button" role="radio" aria-checked={script === 'en'} className={script === 'en' ? 'on' : ''} onClick={() => handleScript('en')}>
+                English
               </button>
-              <button
-                type="button"
-                className={`script-btn ${script === 'np' ? 'active' : ''}`}
-                onClick={() => toggleScript('np')}
-              >
-                नेपाली (Devanagari)
+              <button type="button" role="radio" aria-checked={script === 'np'} className={script === 'np' ? 'on' : ''} onClick={() => handleScript('np')} lang="ne">
+                नेपाली
               </button>
             </div>
           </div>
 
-          {/* Data Categories */}
-          <div className="section-block">
-            <div className="section-label">Included Categories</div>
-            <div className="category-grid">
-              {(['personal', 'contact', 'address', 'professional'] as const).map((cat) => (
-                <div
-                  key={cat}
-                  className={`category-chip ${categories[cat] ? 'active' : ''}`}
-                  onClick={() => toggleCategory(cat)}
-                >
-                  <div className="checkbox-indicator">
-                    {categories[cat] && <Check size={10} strokeWidth={3} />}
-                  </div>
-                  <span style={{ textTransform: 'capitalize' }}>{cat}</span>
-                </div>
+          <div className="field">
+            <span className="field-label">Fill these fields</span>
+            <div className="chips">
+              {CATEGORIES.map((c) => (
+                <button key={c.id} type="button" className={`chip ${categories[c.id] ? 'on' : ''}`} aria-pressed={categories[c.id]} onClick={() => toggleCategory(c.id)}>
+                  {categories[c.id] && <Check size={12} strokeWidth={3} />}
+                  {c.label}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Synthetic Person Preview Card */}
-          <div className="preview-card">
-            <div className="preview-header">
-              <div className="preview-name">
-                {script === 'np' && person.devanagari
-                  ? `${person.devanagari.honorific} ${person.devanagari.fullName}`
-                  : `${person.honorific} ${person.fullName}`}
-              </div>
-              <div className="preview-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  className={`btn-preview-copy ${copiedJson ? 'copied' : ''}`}
-                  onClick={handleCopyJson}
-                  title="Copy Persona as JSON for Postman / Swagger / API testing"
-                >
-                  {copiedJson ? <Check size={11} strokeWidth={3} /> : <Copy size={11} />}
-                  <span>{copiedJson ? 'Copied' : 'JSON'}</span>
-                </button>
-                <div className="preview-gender-badge">
-                  {person.profileType.toUpperCase()} •{' '}
-                  {script === 'np' && person.devanagari ? person.devanagari.gender : person.gender},{' '}
-                  {person.age}y
-                  {isSessionSynced && (
-                    <span className="session-synced-badge" title="Retained across wizard steps in this browser tab">
-                      🔗 Wizard Retained
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="preview-row">
-              <Phone size={12} className="preview-icon" />
-              <span className="preview-text">{person.phone} {person.telephone ? `• Tel: ${person.telephone}` : ''}</span>
-            </div>
-
-            <div className="preview-row">
-              <Mail size={12} className="preview-icon" />
-              <span className="preview-text">{person.workEmail || person.email}</span>
-            </div>
-
-            <div className="preview-row">
-              <MapPin size={12} className="preview-icon" />
-              <span className="preview-text">
-                {script === 'np' && person.devanagari
-                  ? person.devanagari.fullAddress
-                  : person.address.fullAddress}
-              </span>
-            </div>
-
-            <div className="preview-row">
-              <Briefcase size={12} className="preview-icon" />
-              <span className="preview-text">
-                {script === 'np' && person.devanagari
-                  ? `${person.devanagari.occupation} • ${person.devanagari.companyName}`
-                  : person.school
-                  ? `${person.grade || 'Student'} • ${person.school}`
-                  : person.businessName
-                  ? `${person.jobTitle} • ${person.businessName}`
-                  : person.cropType
-                  ? `${person.occupation} • ${person.cropType}`
-                  : `${person.occupation} • ${person.companyName}`}
-              </span>
-            </div>
-          </div>
-
-          {/* Status banner */}
-          {status && (
-            <div className={`status-banner ${status.type}`}>
-              <span>{status.message}</span>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="button-group">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleFillPage}
-              disabled={isFilling}
-            >
-              {isFilling ? (
-                <>
-                  <Sparkles size={16} className="animate-spin" />
-                  Filling Page...
-                </>
-              ) : (
-                <>
-                  <Zap size={16} />
-                  Fill Page
-                </>
-              )}
-            </button>
-
-            <div className="button-subgroup">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleRegenerate}
-                title="Generate a fresh synthetic person"
-              >
-                <RefreshCw size={13} />
-                Generate New
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-secondary btn-undo"
-                onClick={handleUndoFill}
-                disabled={isReverting}
-                title="Undo fill and restore pre-fill state or clear (Alt+Shift+U)"
-              >
-                <RotateCcw size={13} className={isReverting ? 'animate-spin' : ''} />
-                {isReverting ? 'Reverting...' : 'Revert Form'}
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className={`btn btn-secondary btn-copy-json ${copiedJson ? 'copied' : ''}`}
-              onClick={handleCopyJson}
-              title="Copy current persona as formatted JSON for direct pasting into Postman, Swagger, or API payload testing"
-            >
-              {copiedJson ? (
-                <>
-                  <Check size={14} strokeWidth={3} />
-                  Copied Persona JSON!
-                </>
-              ) : (
-                <>
-                  <Copy size={14} />
-                  Copy Persona as JSON
-                </>
-              )}
-            </button>
-          </div>
-        </>
-      ) : (
-        /* Website Specific Mappings Tab */
-        <div className="mappings-container">
-          <div className="mappings-domain-header">
-            <div className="domain-info">
-              <Globe size={14} className="domain-icon" />
-              <span className="domain-title">{activeDomain}</span>
-            </div>
-            <button
-              type="button"
-              className="btn-refresh-inspect"
-              onClick={loadActiveDomainAndInspect}
-              disabled={isInspecting}
-              title="Re-scan active page fields"
-            >
-              <RefreshCw size={12} className={isInspecting ? 'animate-spin' : ''} />
-              Scan
-            </button>
-          </div>
-
-          {/* Saved Domain Overrides */}
-          <div className="section-block">
-            <div className="section-label">Custom Overrides on this Domain</div>
-            {domainRules.length === 0 ? (
-              <div className="empty-rules-hint">
-                No custom overrides saved for {activeDomain}. Fields use rule-based detection or AI classification.
-              </div>
-            ) : (
-              <div className="rules-list">
-                {domainRules.map((rule) => (
-                  <div key={rule.selectorOrName} className="rule-item-row">
-                    <div className="rule-info">
-                      <code className="rule-key">{rule.selectorOrName}</code>
-                      <span className="rule-arrow">➔</span>
-                      <span className="rule-target">{rule.targetType}</span>
+          <section className="card" aria-label="Persona preview">
+            {person ? (
+              <>
+                <div className="card-head">
+                  <div className="card-title-wrap">
+                    <div className="card-title" lang={np ? 'ne' : undefined}>
+                      {np ? person.devanagari!.fullName : person.fullName}
                     </div>
-                    <button
-                      type="button"
-                      className="btn-delete-rule"
-                      onClick={() => handleDeleteRule(rule.selectorOrName)}
-                      title="Delete override rule"
-                    >
-                      <Trash2 size={12} />
+                    <div className="card-meta">
+                      <span>{np ? person.devanagari!.gender : person.gender}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{person.age} yrs</span>
+                      {isSessionSynced && (
+                        <span className="synced" title="This tab keeps the same person across form steps">
+                          <Link2 size={11} /> Kept for this tab
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="card-actions">
+                    <button type="button" className="icon-btn small" onClick={handleCopyJson} title="Copy as JSON" aria-label="Copy person as JSON">
+                      {copied ? <Check size={14} strokeWidth={3} /> : <Copy size={14} />}
+                    </button>
+                    <button type="button" className="icon-btn small" onClick={handleRegenerate} title="New person" aria-label="Generate a new person">
+                      <RefreshCw size={14} />
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Page Field Inspector */}
-          <div className="section-block">
-            <div className="section-label">
-              Active Page Fields ({inspectedFields.length})
-            </div>
-
-            {isInspecting ? (
-              <div className="loading-hint">Inspecting inputs on {activeDomain}...</div>
-            ) : inspectedFields.length === 0 ? (
-              <div className="empty-rules-hint">
-                No interactive inputs found on the active page, or page is restricted. Click Scan to refresh.
-              </div>
+                </div>
+                <ul className="card-rows">
+                  <li><Phone size={13} /><span>{person.phone}</span></li>
+                  <li><Mail size={13} /><span>{person.workEmail || person.email}</span></li>
+                  <li lang={np ? 'ne' : undefined}>
+                    <MapPin size={13} />
+                    <span>{np ? person.devanagari!.fullAddress : person.address.fullAddress}</span>
+                  </li>
+                  <li lang={np ? 'ne' : undefined}><Briefcase size={13} /><span>{describeWork(person, np)}</span></li>
+                </ul>
+              </>
             ) : (
-              <div className="inspected-fields-list">
-                {inspectedFields.map((field) => {
-                  const fieldKey = field.name || field.id || `field_${field.index}`;
-                  const currentSelected = selectedOverrides[fieldKey] || field.detectedType;
-
-                  return (
-                    <div key={`${fieldKey}_${field.index}`} className="inspected-field-card">
-                      <div className="field-card-top">
-                        <div className="field-name-block">
-                          <span className="field-identifier">{fieldKey}</span>
-                          {field.label && <span className="field-label-text">({field.label})</span>}
-                        </div>
-                        <span className={`source-badge ${field.source}`}>
-                          {field.source === 'domain_override' && 'Override'}
-                          {field.source === 'heuristic' && 'Heuristic'}
-                          {field.source === 'ai_cached' && 'AI Cached'}
-                          {field.source === 'unmapped' && 'Unmapped'}
-                        </span>
-                      </div>
-
-                      <div className="override-action-row">
-                        <select
-                          className="mapping-select"
-                          value={currentSelected}
-                          onChange={(e) =>
-                            setSelectedOverrides({
-                              ...selectedOverrides,
-                              [fieldKey]: e.target.value as SupportedFieldType,
-                            })
-                          }
-                        >
-                          <option value="unknown">Unmapped / Ignore</option>
-                          {VALID_FIELD_TYPES.filter((t) => t !== 'unknown').map((ft) => (
-                            <option key={ft} value={ft}>
-                              {ft}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="btn-apply-override"
-                          onClick={() => handleSaveOverride(fieldKey, currentSelected)}
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="card-skeleton" aria-hidden="true">
+                <div /><div /><div /><div />
               </div>
             )}
+          </section>
+
+          {isRestricted && (
+            <div className="status warning" role="status">Chrome doesn't allow extensions on this page. Open a website with a form.</div>
+          )}
+          {status && !isRestricted && (
+            <div className={`status ${status.type}`} role="status" aria-live="polite">{status.message}</div>
+          )}
+
+          <div className="actions">
+            <button type="button" className="btn primary" onClick={handleFillPage} disabled={isFilling || !person || isRestricted}>
+              {isFilling ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+              {isFilling ? 'Filling…' : 'Fill page'}
+            </button>
+            <button type="button" className="btn secondary" onClick={handleUndoFill} disabled={isReverting || isRestricted} title="Restore the values the fields had before filling">
+              {isReverting ? <Loader2 size={15} className="spin" /> : <RotateCcw size={15} />}
+              Undo
+            </button>
           </div>
-        </div>
+        </main>
+      ) : (
+        <main className="panel">
+          {isRestricted ? (
+            <div className="empty">Site rules work on regular web pages. Open a website with a form to map its fields.</div>
+          ) : (
+            <>
+              <div className="domain-bar">
+                <span className="domain"><Globe size={13} /> {activeDomain}</span>
+                <button type="button" className="btn ghost small" onClick={loadMappings} disabled={isInspecting}>
+                  <RefreshCw size={12} className={isInspecting ? 'spin' : ''} /> Rescan
+                </button>
+              </div>
+
+              <p className="hint">Rules override automatic detection for this site. Choose what each field should receive.</p>
+
+              {domainRules.length > 0 && (
+                <div className="field">
+                  <span className="field-label">Saved rules</span>
+                  <ul className="rule-list">
+                    {domainRules.map((rule) => (
+                      <li key={rule.selectorOrName} className="rule">
+                        <code>{rule.selectorOrName}</code>
+                        <span className="rule-arrow" aria-hidden="true">→</span>
+                        <span className="rule-target">{fieldTypeLabel(rule.targetType)}</span>
+                        <button type="button" className="icon-btn small danger" onClick={() => handleDeleteRule(rule.selectorOrName)} aria-label={`Delete rule for ${rule.selectorOrName}`} title="Delete rule">
+                          <Trash2 size={13} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="field">
+                <span className="field-label">Fields on this page ({inspectedFields.length})</span>
+                {isInspecting ? (
+                  <div className="empty">Scanning…</div>
+                ) : inspectedFields.length === 0 ? (
+                  <div className="empty">No form fields found. Reload the page and rescan if the form loaded late.</div>
+                ) : (
+                  <ul className="field-list">
+                    {inspectedFields.map((field) => {
+                      const fieldKey = field.name || field.id || '';
+                      const selected = selectedOverrides[fieldKey] ?? field.detectedType;
+                      const changed = selected !== field.detectedType || field.source === 'unmapped';
+                      return (
+                        <li key={`${fieldKey}-${field.index}`} className="field-item">
+                          <div className="field-item-head">
+                            <span className="field-name" title={field.label || fieldKey}>
+                              {field.label || fieldKey || `Unnamed ${field.type} field`}
+                            </span>
+                            <span className={`source ${field.source}`}>
+                              {field.source === 'domain_override' ? 'Rule' : field.source === 'unmapped' ? 'Unknown' : 'Auto'}
+                            </span>
+                          </div>
+                          {fieldKey ? (
+                            <div className="field-item-row">
+                              <select
+                                className="select small"
+                                value={selected}
+                                aria-label={`Data for ${field.label || fieldKey}`}
+                                onChange={(e) => setSelectedOverrides({ ...selectedOverrides, [fieldKey]: e.target.value as SupportedFieldType })}
+                              >
+                                {MAPPABLE_FIELD_TYPES.map((ft) => (
+                                  <option key={ft} value={ft}>{fieldTypeLabel(ft)}</option>
+                                ))}
+                                {!MAPPABLE_FIELD_TYPES.includes(selected) && <option value={selected}>{fieldTypeLabel(selected)}</option>}
+                              </select>
+                              <button type="button" className="btn secondary small" disabled={!changed} onClick={() => handleSaveOverride(fieldKey, selected)}>
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="hint">This field has no name or id, so a rule can't target it.</div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </main>
       )}
+
+      <footer className="footer">
+        <span className="footer-mode" title={aiEnabled && aiReady ? 'Unknown fields are classified with Gemini' : 'All data is generated on your device'}>
+          {aiEnabled && aiReady ? <Bot size={12} /> : <ShieldCheck size={12} />}
+          {aiEnabled && aiReady ? 'AI assist on' : 'Offline'}
+        </span>
+        {fillShortcut && (
+          <span className="footer-shortcut">
+            Fill: <kbd>{fillShortcut}</kbd>
+          </span>
+        )}
+      </footer>
     </div>
   );
 };
