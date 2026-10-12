@@ -251,7 +251,7 @@ const PATTERN_RULES: MatchRule[] = [
   },
   {
     type: 'grade',
-    regex: /(?:\b(grade|class|level|semester|standard|kaksha|taha|shreni)\b|कक्षा|तह|श्रेणी|सेमेस्टर)/i,
+    regex: /(?:\b(grade|class|level|semester|kaksha|taha|shreni)\b|कक्षा|तह|श्रेणी|सेमेस्टर)/i,
     baseConfidence: 0.92,
   },
   {

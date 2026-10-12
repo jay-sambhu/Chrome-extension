@@ -49,6 +49,7 @@ import {
   toFillOptions,
 } from '../services/settings';
 import { serializePersonaToJson, copyTextToClipboard } from '../utils/personaExport';
+import { sendToTab } from '../services/tabMessaging';
 import { fieldTypeLabel, MAPPABLE_FIELD_TYPES } from '../utils/fieldTypeLabels';
 
 type Status = { type: 'success' | 'warning' | 'error'; message: string } | null;
@@ -83,26 +84,6 @@ async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   if (!hasChrome()) return undefined;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
-}
-
-/**
- * Messages every frame of the tab. If the page was open before the extension was
- * installed it has no content script yet, so inject it once and retry.
- */
-async function sendToTab<T = any>(tabId: number, message: unknown, topFrameOnly = false): Promise<T | undefined> {
-  const opts = topFrameOnly ? { frameId: 0 } : {};
-  try {
-    return await chrome.tabs.sendMessage(tabId, message, opts);
-  } catch {
-    const files = chrome.runtime.getManifest().content_scripts?.[0]?.js;
-    if (!files?.length) return undefined;
-    try {
-      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files });
-      return await chrome.tabs.sendMessage(tabId, message, opts);
-    } catch {
-      return undefined;
-    }
-  }
 }
 
 function describeWork(person: SyntheticPerson, np: boolean): string {

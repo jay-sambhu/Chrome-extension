@@ -8,6 +8,7 @@ import {
   saveSettings,
   toFillOptions,
 } from '../services/settings';
+import { sendToTab } from '../services/tabMessaging';
 
 const MENU_FILL = 'nepal-test-filler-quick-fill';
 const MENU_REGENERATE = 'nepal-test-filler-regenerate-fill';
@@ -15,25 +16,6 @@ const MENU_UNDO = 'nepal-test-filler-undo-fill';
 
 function isScriptableUrl(url?: string): boolean {
   return Boolean(url && /^(https?|file):/.test(url) && !url.startsWith('https://chromewebstore.google.com'));
-}
-
-/**
- * Sends a message to every frame of a tab. Tabs that were open before the extension
- * was installed have no content script yet, so inject it once and retry.
- */
-async function sendToTab<T = unknown>(tabId: number, message: unknown): Promise<T | undefined> {
-  try {
-    return await chrome.tabs.sendMessage(tabId, message);
-  } catch {
-    const files = chrome.runtime.getManifest().content_scripts?.[0]?.js;
-    if (!files?.length) return undefined;
-    try {
-      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files });
-      return await chrome.tabs.sendMessage(tabId, message);
-    } catch {
-      return undefined;
-    }
-  }
 }
 
 async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
@@ -49,9 +31,11 @@ async function fillActiveTab(regenerate: boolean) {
   let person: SyntheticPerson | null = null;
 
   if (!regenerate) {
-    const session = await sendToTab<{ status: string; person?: SyntheticPerson }>(tab.id, {
-      action: 'GET_SESSION_PERSONA',
-    });
+    const session = await sendToTab<{ status: string; person?: SyntheticPerson }>(
+      tab.id,
+      { action: 'GET_SESSION_PERSONA' },
+      true
+    );
     person = session?.status === 'ok' && session.person ? session.person : await loadCurrentPerson();
   }
 

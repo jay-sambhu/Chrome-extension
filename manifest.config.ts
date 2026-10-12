@@ -31,6 +31,8 @@ export default defineManifest(() => ({
       js: ['src/content/index.ts'],
       all_frames: true,
       match_about_blank: true,
+      // Ready as soon as the DOM is parsed, so "Fill" works before heavy pages finish loading
+      run_at: 'document_end',
     },
   ],
   permissions: ['storage', 'activeTab', 'scripting', 'contextMenus'],

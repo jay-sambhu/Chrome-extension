@@ -28,4 +28,4 @@ It never sends values you typed, values on the page, or the generated test data.
 
 ## Contact
 
-Questions about this policy: <!-- TODO before publishing: add a support email address -->
+Questions about this policy: dellizulter@gmail.com
